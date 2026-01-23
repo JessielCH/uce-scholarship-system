@@ -1,68 +1,63 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
+/* 1. ESTILOS BASE */
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  background-color: #f5f7fa;
+  /* Opcional: Si usas una fuente específica como Inter, asegúrate de importarla en index.html */
+  /* font-family: 'Inter', sans-serif; */
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* 2. ANIMACIONES SUAVES (UI/UX) */
+@layer utilities {
+  /* Animación principal para entrada de páginas */
+  .animate-fade-in {
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Animación con retraso para elementos internos (tarjetas, listas) */
+  .animate-in-delayed {
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+    opacity: 0; /* Empieza invisible para evitar parpadeos */
+  }
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* Keyframe: Deslizamiento suave hacia arriba + aparición */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98); /* Empieza un poco más abajo y pequeño */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1); /* Termina en su sitio y tamaño normal */
+  }
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* 3. SCROLLBAR PERSONALIZADO (Estética Moderna) */
+/* Esto quita la barra gris fea del navegador por defecto */
+
+/* Ancho de la barra */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
+
+/* Fondo de la barra */
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+/* El "pulgar" (lo que se mueve) */
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* Gris suave */
+  border-radius: 4px;
+}
+
+/* Al pasar el mouse sobre la barra */
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* Gris más oscuro */
+}
+/* 4. ESTILOS ADICIONALES OPCIONALES */
+/* Puedes agregar más estilos globales aquí según tus necesidades */
