@@ -41,3 +41,5 @@ Thumbs.db
 # Test coverage
 coverage/
 *.lcov  
+*storybook.log
+storybook-static
