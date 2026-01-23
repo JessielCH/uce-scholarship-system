@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/student/Dashboard";
 import AdminLayout from "./components/layout/AdminLayout";
 import ScholarsList from "./pages/admin/ScholarsList";
+import StaffSettings from "./pages/admin/StaffSettings";
 import { RoleRoute } from "./components/layout/RoleRoute";
 
 function App() {
@@ -47,14 +48,7 @@ function App() {
 
               {/* Ruta solo para ADMIN PURO */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
-                <Route
-                  path="settings"
-                  element={
-                    <div className="p-4">
-                      <h1>Configuración Global</h1>
-                    </div>
-                  }
-                />
+                <Route path="settings" element={<StaffSettings />} />
               </Route>
             </Route>
           </Route>
