@@ -17,7 +17,16 @@ export const AuthProvider = ({ children }) => {
           data: { session },
         } = await supabase.auth.getSession();
         setSession(session);
-        setUser(session?.user ?? null);
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+          setUser({ ...session.user, ...profile });
+        } else {
+          setUser(null);
+        }
       } catch (error) {
         console.error("Error verificando sesión:", error);
       } finally {
@@ -30,9 +39,23 @@ export const AuthProvider = ({ children }) => {
     // 2. Escuchar cambios en la autenticación
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+          setUser({ ...session.user, ...profile });
+        } catch (error) {
+          console.error("Error fetching profile:", error);
+          setUser(session.user); // Fallback to just user data
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
 
