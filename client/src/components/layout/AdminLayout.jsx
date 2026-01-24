@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  Upload,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -25,6 +26,7 @@ const AdminLayout = () => {
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
     { label: "Becarios", icon: Users, path: "/admin/scholars" },
+    { label: "Carga Masiva", icon: Upload, path: "/admin/ingest" },
     { label: "Auditoría", icon: FileText, path: "/admin/audit" },
   ];
 
