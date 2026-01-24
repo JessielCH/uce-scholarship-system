@@ -2,14 +2,25 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../services/supabaseClient";
 import { Timeline } from "../../components/ui/Timeline";
-import { AlertTriangle, FileText, UploadCloud } from "lucide-react";
+// IMPORTANTE: Aquí agregamos CheckCircle y Clock que faltaban
+import {
+  AlertTriangle,
+  FileText,
+  UploadCloud,
+  CheckCircle,
+  Clock,
+  Loader2,
+} from "lucide-react";
+import BankUploadModal from "../../components/student/BankUploadModal";
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [studentData, setStudentData] = useState(null);
   const [scholarship, setScholarship] = useState(null);
-  const [currentPeriod, setCurrentPeriod] = useState(null); // Nuevo estado para el periodo global
   const [loading, setLoading] = useState(true);
+
+  // Estado para controlar el Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -17,19 +28,7 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // 1. Obtener Periodo Académico Activo (Independiente del estudiante)
-        const { data: activePeriod, error: periodError } = await supabase
-          .from("academic_periods")
-          .select("*")
-          .eq("is_active", true)
-          .single();
-
-        if (activePeriod) {
-          setCurrentPeriod(activePeriod);
-        }
-
-        // 2. Obtener Datos del Estudiante
+        // 1. Obtener datos personales (Perfil Estudiante)
         const { data: student, error: stuError } = await supabase
           .from("students")
           .select("*")
@@ -39,18 +38,16 @@ const Dashboard = () => {
         if (stuError) throw stuError;
         setStudentData(student);
 
-        // 3. Obtener Beca (Si existe para este estudiante en el periodo activo)
-        // Intentamos buscar una beca que coincida con el estudiante Y el periodo actual
-        if (activePeriod) {
-          const { data: selection, error: selError } = await supabase
-            .from("scholarship_selections")
-            .select("*, careers(name)") // Ya no necesitamos traer academic_periods aquí para el título
-            .eq("student_id", student.id)
-            .eq("period_id", activePeriod.id) // Filtramos por el periodo actual
-            .maybeSingle(); // Usamos maybeSingle para que no lance error si no hay resultados (simplemente devuelve null)
+        // 2. Obtener Beca Activa
+        const { data: selection, error: selError } = await supabase
+          .from("scholarship_selections")
+          .select("*, academic_periods(name), careers(name)")
+          .eq("student_id", student.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
 
-          setScholarship(selection);
-        }
+        if (!selError) setScholarship(selection);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -63,16 +60,14 @@ const Dashboard = () => {
 
   if (loading)
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="text-primary-600 font-semibold">
-          Cargando perfil académico...
-        </div>
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin text-primary-600 h-8 w-8" />
       </div>
     );
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Navbar */}
       <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -82,12 +77,12 @@ const Dashboard = () => {
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 font-medium">
+              <span className="text-sm text-gray-600 hidden sm:block">
                 {studentData?.first_name} {studentData?.last_name}
               </span>
               <button
                 onClick={signOut}
-                className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-100 px-3 py-1 rounded bg-red-50"
+                className="text-sm text-red-600 hover:text-red-800 font-medium"
               >
                 Cerrar Sesión
               </button>
@@ -96,88 +91,144 @@ const Dashboard = () => {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Contenido Principal */}
       <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Dashboard Académico
+            Panel del Estudiante
           </h1>
-          {/* AQUI ESTÁ EL CAMBIO: Usamos currentPeriod.name o un fallback */}
-          <p className="mt-2 text-lg text-primary-700 font-medium bg-primary-50 inline-block px-3 py-1 rounded-md border border-primary-100">
-            Periodo Actual: {currentPeriod?.name || "No hay periodo activo"}
+          <p className="mt-1 text-gray-500">
+            Periodo Académico:{" "}
+            <span className="font-semibold">
+              {scholarship?.academic_periods?.name || "N/A"}
+            </span>
           </p>
         </div>
 
-        {/* Scholarship Status Card */}
         {scholarship ? (
-          <div className="bg-white overflow-hidden shadow-lg rounded-lg mb-8 border border-gray-100">
+          <div className="bg-white overflow-hidden shadow rounded-lg mb-8 border border-gray-200">
             <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                Estado de tu Beca
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-6">
+                Progreso de tu Solicitud
               </h3>
 
-              {/* Timeline Component */}
+              {/* TIMELINE */}
               <Timeline currentStatus={scholarship.status} />
 
-              <div className="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <FileText className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-blue-700">
-                      Carrera:{" "}
-                      <span className="font-bold">
-                        {scholarship.careers?.name}
-                      </span>{" "}
-                      <br />
-                      Promedio registrado:{" "}
-                      <span className="font-bold">
-                        {scholarship.average_grade}
-                      </span>{" "}
-                      | Condición: {scholarship.academic_condition}
-                    </p>
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Datos Académicos */}
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <FileText className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-bold text-blue-800">
+                        Información Académica
+                      </h4>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <p>Carrera: {scholarship.careers?.name}</p>
+                        <p>
+                          Promedio:{" "}
+                          <span className="font-bold">
+                            {scholarship.average_grade}
+                          </span>
+                        </p>
+                        <p>Condición: {scholarship.academic_condition}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Datos Bancarios (Si existen) */}
+                {scholarship.bank_account_number && (
+                  <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-md">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <CheckCircle className="h-5 w-5 text-green-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-bold text-green-800">
+                          Datos Bancarios Registrados
+                        </h4>
+                        <div className="mt-2 text-sm text-green-700">
+                          <p>
+                            Cuenta detectada:{" "}
+                            <span className="font-mono font-bold">
+                              {scholarship.bank_account_number}
+                            </span>
+                          </p>
+                          <p className="text-xs mt-1">
+                            Documento cargado correctamente.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Action Footer */}
-            <div className="bg-gray-50 px-4 py-4 sm:px-6 flex justify-end border-t border-gray-100">
-              {scholarship.status === "SELECTED" ||
-              scholarship.status === "NOTIFIED" ||
-              scholarship.status === "CHANGES_REQUESTED" ? (
-                <button className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 shadow-sm transition-colors">
+            {/* Footer de Acciones */}
+            <div className="bg-gray-50 px-4 py-4 sm:px-6 flex justify-end items-center border-t border-gray-200">
+              {/* LÓGICA DE BOTONES SEGÚN ESTADO */}
+
+              {(scholarship.status === "SELECTED" ||
+                scholarship.status === "NOTIFIED") && (
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 shadow-sm transition-all"
+                >
                   <UploadCloud size={18} />
                   Subir Certificado Bancario
                 </button>
-              ) : (
-                <span className="text-sm text-gray-500 italic flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  No hay acciones pendientes por ahora.
-                </span>
+              )}
+
+              {scholarship.status === "DOCS_UPLOADED" && (
+                <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
+                  <Clock size={18} />
+                  <span className="font-medium text-sm">
+                    Esperando revisión del Staff
+                  </span>
+                </div>
+              )}
+
+              {(scholarship.status === "APPROVED" ||
+                scholarship.status === "PAID") && (
+                <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                  <CheckCircle size={18} />
+                  <span className="font-medium text-sm">
+                    Beca Aprobada y Procesada
+                  </span>
+                </div>
               )}
             </div>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg p-8 text-center border border-gray-200">
-            <div className="bg-yellow-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="h-8 w-8 text-yellow-500" />
-            </div>
+          <div className="bg-white shadow rounded-lg p-10 text-center">
+            <AlertTriangle className="mx-auto h-12 w-12 text-yellow-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900">
-              No seleccionado para Beca
+              No seleccionado
             </h3>
             <p className="mt-2 text-gray-500 max-w-md mx-auto">
-              Hola <strong>{studentData?.first_name}</strong>, no hemos
-              encontrado una asignación de beca activa para ti en el periodo{" "}
-              <strong>{currentPeriod?.name}</strong>.
-            </p>
-            <p className="text-sm text-gray-400 mt-4">
-              Si crees que esto es un error, por favor contacta a Bienestar
-              Estudiantil.
+              Actualmente no tienes una beca asignada para este periodo
+              académico. Si crees que es un error, contacta a bienestar
+              estudiantil.
             </p>
           </div>
+        )}
+
+        {/* MODAL DE SUBIDA (Renderizado Condicional) */}
+        {isModalOpen && scholarship && (
+          <BankUploadModal
+            studentId={studentData.id}
+            selectionId={scholarship.id}
+            onClose={() => setIsModalOpen(false)}
+            onSuccess={() => {
+              // Recargar la página para ver el nuevo estado
+              window.location.reload();
+            }}
+          />
         )}
       </main>
     </div>
