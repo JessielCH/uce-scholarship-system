@@ -9,6 +9,7 @@ import Dashboard from "./pages/student/Dashboard";
 import AdminLayout from "./components/layout/AdminLayout";
 import ScholarsList from "./pages/admin/ScholarsList";
 import StaffSettings from "./pages/admin/StaffSettings";
+import IngestData from "./pages/admin/IngestData";
 import { RoleRoute } from "./components/layout/RoleRoute";
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
                 }
               />
               <Route path="scholars" element={<ScholarsList />} />
+              <Route path="ingest" element={<IngestData />} />
               <Route
                 path="audit"
                 element={
