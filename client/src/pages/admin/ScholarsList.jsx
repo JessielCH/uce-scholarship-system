@@ -1,21 +1,30 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabaseClient";
-import { CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
+import { sendNotification } from "../../utils/emailService";
 import { useAuth } from "../../context/AuthContext";
+import {
+  CheckCircle,
+  XCircle,
+  FileText,
+  DollarSign,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
 
 const fetchScholars = async () => {
-  // JOIN: Scholarship -> Student -> Career
+  // Traemos también los documentos subidos
   const { data, error } = await supabase
     .from("scholarship_selections")
     .select(
       `
       *,
       students (first_name, last_name, national_id, university_email),
-      careers (name)
+      careers (name),
+      documents (*)
     `,
     )
-    .order("created_at", { ascending: false });
+    .order("updated_at", { ascending: false });
 
   if (error) throw error;
   return data;
@@ -24,8 +33,8 @@ const fetchScholars = async () => {
 const ScholarsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [processingId, setProcessingId] = useState(null);
 
-  // 1. QUERY: Obtener datos
   const {
     data: scholars,
     isLoading,
@@ -35,48 +44,87 @@ const ScholarsList = () => {
     queryFn: fetchScholars,
   });
 
-  // 2. MUTATION: Acción de Auditoría (Ejemplo: Aprobar Pago)
-  const payMutation = useMutation({
-    mutationFn: async ({ selectionId, studentName }) => {
-      // A. Actualizar estado
+  // MUTATION: Actualizar Estado (Aprobar/Rechazar/Pagar)
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, newStatus, student, reason = "" }) => {
+      setProcessingId(id);
+
+      // 1. Actualizar BD
       const { error: updateError } = await supabase
         .from("scholarship_selections")
-        .update({ status: "PAID", payment_date: new Date() })
-        .eq("id", selectionId);
+        .update({
+          status: newStatus,
+          rejection_reason: reason,
+          // Si pagamos, guardamos fecha
+          payment_date: newStatus === "PAID" ? new Date() : null,
+        })
+        .eq("id", id);
 
       if (updateError) throw updateError;
 
-      // B. Insertar Log de Auditoría (Trazabilidad)
-      const { error: auditError } = await supabase.from("audit_logs").insert({
-        action: "MARK_PAID",
+      // 2. Audit Log
+      await supabase.from("audit_logs").insert({
+        action: `CHANGE_STATUS_${newStatus}`,
         target_entity: "scholarship_selections",
-        target_id: selectionId,
-        performed_by: user.id, // ID del Admin logueado
-        details: {
-          reason: "Manual payment approval by staff",
-          student: studentName,
-        },
+        target_id: id,
+        details: { reason },
       });
 
-      if (auditError) throw auditError;
+      // 3. Enviar Correo
+      await sendNotification(
+        `${student.first_name} ${student.last_name}`,
+        student.university_email,
+        newStatus,
+        reason,
+      );
     },
     onSuccess: () => {
-      // Invalida la caché para refrescar la tabla automáticamente
       queryClient.invalidateQueries(["scholars"]);
-      alert("Pago registrado y auditado correctamente.");
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      alert("Error: " + err.message);
+      setProcessingId(null);
     },
   });
 
+  // Función auxiliar para obtener URL del PDF
+  const getDocUrl = (docs) => {
+    const cert = docs?.find((d) => d.document_type === "BANK_CERT");
+    if (!cert) return null;
+    // Obtener URL pública (o firmada si es privado, aquí usamos getPublicUrl por simplicidad en demo)
+    const { data } = supabase.storage
+      .from("scholarship-docs")
+      .getPublicUrl(cert.file_path);
+    return data.publicUrl;
+  };
+
+  // Función para abrir documentos privados de forma segura
+  const handleOpenDocument = async (filePath) => {
+    try {
+      // Generar URL firmada válida por 60 segundos
+      const { data, error } = await supabase.storage
+        .from("scholarship-docs")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+
+      // Abrir en nueva pestaña
+      window.open(data.signedUrl, "_blank");
+    } catch (error) {
+      alert("Error al abrir documento: " + error.message);
+    }
+  };
+
   if (isLoading)
-    return <div className="text-center p-10">Cargando becarios...</div>;
-  if (error)
-    return <div className="text-red-600 p-10">Error: {error.message}</div>;
+    return <div className="p-10 text-center">Cargando datos...</div>;
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
+      {/* ... Header de la tabla ... */}
       <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
         <h3 className="text-lg leading-6 font-medium text-gray-900">
-          Listado Maestro de Becarios
+          Gestión de Becarios
         </h3>
       </div>
 
@@ -84,71 +132,149 @@ const ScholarsList = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                 Estudiante
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Carrera / Promedio
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Detalles
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Documentos
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                 Estado
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                 Acciones
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {scholars.map((scholar) => (
-              <tr key={scholar.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
+            {scholars?.map((item) => (
+              <tr key={item.id}>
+                <td className="px-6 py-4">
                   <div className="text-sm font-medium text-gray-900">
-                    {scholar.students?.first_name} {scholar.students?.last_name}
+                    {item.students?.first_name} {item.students?.last_name}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {scholar.students?.university_email}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {scholar.students?.national_id}
+                  <div className="text-xs text-gray-500">
+                    {item.students?.university_email}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {scholar.careers?.name}
+
+                <td className="px-6 py-4">
+                  <div className="text-sm text-gray-700">
+                    {item.careers?.name}
                   </div>
-                  <div className="text-sm font-bold text-gray-600">
-                    Avg: {scholar.average_grade}
+                  <div className="text-xs text-gray-500">
+                    Prom: {item.average_grade} | Cond: {item.academic_condition}
                   </div>
+                  {item.bank_account_number && (
+                    <div className="text-xs font-mono bg-green-50 text-green-700 px-2 py-1 rounded mt-1 w-fit">
+                      Cta: {item.bank_account_number}
+                    </div>
+                  )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${scholar.status === "PAID" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
-                  >
-                    {scholar.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  {/* Botones de Acción Simulada */}
-                  {scholar.status === "APPROVED" && (
+
+                <td className="px-6 py-4">
+                  {/* Buscamos si hay un certificado bancario */}
+                  {item.documents?.find(
+                    (d) => d.document_type === "BANK_CERT",
+                  ) ? (
                     <button
                       onClick={() =>
-                        payMutation.mutate({
-                          selectionId: scholar.id,
-                          studentName: `${scholar.students.first_name} ${scholar.students.last_name}`,
-                        })
+                        handleOpenDocument(
+                          item.documents.find(
+                            (d) => d.document_type === "BANK_CERT",
+                          ).file_path,
+                        )
                       }
-                      className="text-green-600 hover:text-green-900 flex items-center justify-end gap-1 ml-auto"
+                      className="flex items-center text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium transition-colors"
                     >
-                      <DollarSign size={16} /> Pagar
+                      <FileText size={16} className="mr-1" /> Ver Certificado
                     </button>
+                  ) : (
+                    <span className="flex items-center text-xs text-gray-400">
+                      <XCircle size={14} className="mr-1" /> Sin archivo
+                    </span>
                   )}
-                  {scholar.status !== "PAID" &&
-                    scholar.status !== "APPROVED" && (
-                      <span className="text-gray-400 text-xs">
-                        Esperando proceso
-                      </span>
-                    )}
+                </td>
+
+                <td className="px-6 py-4">
+                  <span
+                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    ${
+                      item.status === "PAID"
+                        ? "bg-green-100 text-green-800"
+                        : item.status === "DOCS_UPLOADED"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  {processingId === item.id ? (
+                    <Loader2 className="animate-spin ml-auto text-primary-600" />
+                  ) : (
+                    <div className="flex justify-end gap-2">
+                      {/* ACCIONES PARA ESTADO: DOCS_UPLOADED */}
+                      {item.status === "DOCS_UPLOADED" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                id: item.id,
+                                newStatus: "CHANGES_REQUESTED",
+                                student: item.students,
+                                reason: "Documento ilegible",
+                              })
+                            }
+                            className="text-red-600 hover:text-red-900"
+                            title="Rechazar Documento"
+                          >
+                            <XCircle size={20} />
+                          </button>
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                id: item.id,
+                                newStatus: "APPROVED",
+                                student: item.students,
+                              })
+                            }
+                            className="text-green-600 hover:text-green-900"
+                            title="Aprobar Beca"
+                          >
+                            <CheckCircle size={20} />
+                          </button>
+                        </>
+                      )}
+
+                      {/* ACCIONES PARA ESTADO: APPROVED */}
+                      {item.status === "APPROVED" && (
+                        <button
+                          onClick={() =>
+                            statusMutation.mutate({
+                              id: item.id,
+                              newStatus: "PAID",
+                              student: item.students,
+                            })
+                          }
+                          className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                        >
+                          <DollarSign size={16} /> Pagar
+                        </button>
+                      )}
+
+                      {item.status === "PAID" && (
+                        <span className="text-gray-400 text-xs">
+                          Finalizado
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

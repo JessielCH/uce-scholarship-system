@@ -1,7 +1,9 @@
 import * as pdfjsLib from "pdfjs-dist";
 
-// Configurar el worker desde CDN para evitar problemas de bundler en Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// --- CORRECCIÓN CRÍTICA ---
+// Usamos unpkg en lugar de cdnjs para asegurar compatibilidad con la versión instalada.
+// Apuntamos a 'pdf.worker.min.mjs' (Módulo) en lugar de .js clásico.
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 /**
  * Lee un archivo PDF y busca patrones de cuenta bancaria.
@@ -10,40 +12,57 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
  */
 export const extractBankAccount = async (file) => {
   try {
+    console.log(`🔍 Iniciando OCR con PDF.js v${pdfjsLib.version}`);
+
     // 1. Convertir File a ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
 
     // 2. Cargar documento PDF
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    // Nota: En versiones nuevas, getDocument devuelve un objeto con .promise
+    const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+    const pdf = await loadingTask.promise;
+
     let fullText = "";
 
-    // 3. Leer solo la primera página (usualmente ahí está la cuenta)
+    // 3. Leer la primera página (usualmente ahí está la cuenta)
     const page = await pdf.getPage(1);
     const textContent = await page.getTextContent();
 
     // Unir todo el texto encontrado
     fullText = textContent.items.map((item) => item.str).join(" ");
 
-    console.log("Texto extraído (Debug):", fullText);
+    console.log("📄 Texto extraído:", fullText);
 
     // 4. Buscar patrones con REGEX (Mejorado)
-    // Busca: "cta", "cuenta", "ahorros", "no.", "número" seguido de 9-12 dígitos
+    // Busca: "Cta", "Cuenta", "Nro", "No.", seguido de 9-12 dígitos
     const accountRegex =
       /(?:cta|cuenta|ahorros|corriente|nro|número|no\.?)[\s\.:-]*(\d{9,12})/i;
 
     const match = fullText.match(accountRegex);
 
     if (match && match[1]) {
-      return match[1]; // Retorna el número capturado con precisión
+      console.log("✅ Cuenta encontrada por Regex Estricto:", match[1]);
+      return match[1];
     }
 
-    // Intento secundario: Buscar cualquier secuencia larga de números (Plan B)
+    // Intento secundario: Buscar cualquier secuencia larga de 10-12 dígitos
+    // (Útil si el PDF solo dice el número sin etiqueta)
     const fallbackRegex = /\b(\d{10,12})\b/;
     const fallbackMatch = fullText.match(fallbackRegex);
 
-    return fallbackMatch ? fallbackMatch[1] : null;
+    if (fallbackMatch) {
+      console.log(
+        "⚠️ Cuenta encontrada por Regex Secundario:",
+        fallbackMatch[1],
+      );
+      return fallbackMatch[1];
+    }
+
+    console.warn("❌ No se detectó patrón de cuenta bancaria.");
+    return null;
   } catch (error) {
-    console.error("Error en OCR:", error);
+    console.error("❌ Error Fatal en OCR:", error);
+    // No lanzamos error para que la UI no explote, solo retornamos null
     return null;
   }
 };
