@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../services/supabaseClient";
 import { Timeline } from "../../components/ui/Timeline";
-// IMPORTANTE: Aquí agregamos CheckCircle y Clock que faltaban
+// IMPORTANTE: Agregamos RefreshCcw para el icono de corregir
 import {
   AlertTriangle,
   FileText,
@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Clock,
   Loader2,
+  RefreshCcw,
 } from "lucide-react";
 import BankUploadModal from "../../components/student/BankUploadModal";
 
@@ -108,6 +109,29 @@ const Dashboard = () => {
         {scholarship ? (
           <div className="bg-white overflow-hidden shadow rounded-lg mb-8 border border-gray-200">
             <div className="px-4 py-5 sm:p-6">
+              {/* --- NUEVO: ALERTA ROJA SI FUE RECHAZADO --- */}
+              {scholarship.status === "CHANGES_REQUESTED" && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md animate-pulse">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">
+                        Se requiere corrección en tu documento
+                      </h3>
+                      <div className="mt-2 text-sm text-red-700">
+                        <p className="font-bold">
+                          Motivo: "{scholarship.rejection_reason}"
+                        </p>
+                        <p>Por favor, sube un nuevo PDF legible.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* --------------------------------------------- */}
+
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-6">
                 Progreso de tu Solicitud
               </h3>
@@ -171,16 +195,28 @@ const Dashboard = () => {
 
             {/* Footer de Acciones */}
             <div className="bg-gray-50 px-4 py-4 sm:px-6 flex justify-end items-center border-t border-gray-200">
-              {/* LÓGICA DE BOTONES SEGÚN ESTADO */}
-
+              {/* LÓGICA COMBINADA: Subida Inicial O Corrección */}
               {(scholarship.status === "SELECTED" ||
-                scholarship.status === "NOTIFIED") && (
+                scholarship.status === "NOTIFIED" ||
+                scholarship.status === "CHANGES_REQUESTED") && ( // Agregamos CHANGES_REQUESTED aquí
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 shadow-sm transition-all"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md shadow-sm transition-all text-white
+                    ${
+                      scholarship.status === "CHANGES_REQUESTED"
+                        ? "bg-red-600 hover:bg-red-700" // Rojo si es corrección
+                        : "bg-primary-600 hover:bg-primary-700" // Azul normal
+                    }`}
                 >
-                  <UploadCloud size={18} />
-                  Subir Certificado Bancario
+                  {scholarship.status === "CHANGES_REQUESTED" ? (
+                    <>
+                      <RefreshCcw size={18} /> Corregir Documento
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={18} /> Subir Certificado Bancario
+                    </>
+                  )}
                 </button>
               )}
 
@@ -218,14 +254,13 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* MODAL DE SUBIDA (Renderizado Condicional) */}
+        {/* MODAL DE SUBIDA */}
         {isModalOpen && scholarship && (
           <BankUploadModal
             studentId={studentData.id}
             selectionId={scholarship.id}
             onClose={() => setIsModalOpen(false)}
             onSuccess={() => {
-              // Recargar la página para ver el nuevo estado
               window.location.reload();
             }}
           />
