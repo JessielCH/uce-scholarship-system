@@ -47,7 +47,7 @@ const Dashboard = () => {
         // 2. Obtener Beca Activa
         const { data: selection, error: selError } = await supabase
           .from("scholarship_selections")
-          .select("*, academic_periods(name), careers(name)")
+          .select("*, academic_periods(name), careers(name), documents(*)") // <--- AGREGAR documents(*)
           .eq("student_id", student.id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -63,6 +63,22 @@ const Dashboard = () => {
 
     fetchData();
   }, [user]);
+
+  // Función para descargar comprobante de pago
+  const downloadReceipt = async (docs) => {
+    const receipt = docs?.find(d => d.document_type === 'PAYMENT_RECEIPT');
+    if (!receipt) return alert("Comprobante no encontrado");
+
+    try {
+        const { data, error } = await supabase.storage
+            .from('scholarship-docs')
+            .createSignedUrl(receipt.file_path, 60);
+        if(error) throw error;
+        window.open(data.signedUrl, '_blank');
+    } catch(e) {
+        alert("Error al descargar");
+    }
+  };
 
   if (loading)
     return (
@@ -137,7 +153,7 @@ const Dashboard = () => {
               )}
               {/* --------------------------------------------- */}
 
-              {scholarship.status?.toUpperCase() === 'CONTRACT_REJECTED' && (
+              {scholarship.status?.toUpperCase() === "CONTRACT_REJECTED" && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md animate-pulse">
                   <div className="flex">
                     <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -292,6 +308,27 @@ const Dashboard = () => {
                   <span className="font-medium text-sm">
                     Contrato Aceptado. Esperando desembolso.
                   </span>
+                </div>
+              )}
+
+              {scholarship.status?.toUpperCase() === "PAID" && (
+                <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200 mb-2">
+                      <CheckCircle size={18} />
+                      <span className="font-medium text-sm">¡Pago Realizado!</span>
+                    </div>
+
+                    {/* BOTÓN DE DESCARGA */}
+                    <button
+                        onClick={() => downloadReceipt(scholarship.documents)}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1"
+                    >
+                        <Download size={14} /> Descargar Comprobante
+                    </button>
+
+                    <span className="text-xs text-gray-500 mt-1">
+                      Fecha: {new Date(scholarship.payment_date || Date.now()).toLocaleDateString()}
+                    </span>
                 </div>
               )}
             </div>
