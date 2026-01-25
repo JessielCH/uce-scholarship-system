@@ -13,6 +13,9 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import BankUploadModal from "../../components/student/BankUploadModal";
+import { downloadContract } from "../../utils/generateContract";
+import ContractUploadModal from "../../components/student/ContractUploadModal";
+import { FileSignature, Download } from "lucide-react"; // Iconos nuevos
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -22,6 +25,8 @@ const Dashboard = () => {
 
   // Estado para controlar el Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -110,7 +115,7 @@ const Dashboard = () => {
           <div className="bg-white overflow-hidden shadow rounded-lg mb-8 border border-gray-200">
             <div className="px-4 py-5 sm:p-6">
               {/* --- NUEVO: ALERTA ROJA SI FUE RECHAZADO --- */}
-              {scholarship.status === "CHANGES_REQUESTED" && (
+              {scholarship.status?.toUpperCase() === "CHANGES_REQUESTED" && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md animate-pulse">
                   <div className="flex">
                     <div className="flex-shrink-0">
@@ -131,6 +136,23 @@ const Dashboard = () => {
                 </div>
               )}
               {/* --------------------------------------------- */}
+
+              {scholarship.status?.toUpperCase() === 'CONTRACT_REJECTED' && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md animate-pulse">
+                  <div className="flex">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">
+                        Error en el Contrato
+                      </h3>
+                      <p className="mt-1 text-sm text-red-700">
+                        Motivo: "{scholarship.rejection_reason}". Descarga,
+                        firma y sube de nuevo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-6">
                 Progreso de tu Solicitud
@@ -196,19 +218,19 @@ const Dashboard = () => {
             {/* Footer de Acciones */}
             <div className="bg-gray-50 px-4 py-4 sm:px-6 flex justify-end items-center border-t border-gray-200">
               {/* LÓGICA COMBINADA: Subida Inicial O Corrección */}
-              {(scholarship.status === "SELECTED" ||
-                scholarship.status === "NOTIFIED" ||
-                scholarship.status === "CHANGES_REQUESTED") && ( // Agregamos CHANGES_REQUESTED aquí
+              {(scholarship.status?.toUpperCase() === "SELECTED" ||
+                scholarship.status?.toUpperCase() === "NOTIFIED" ||
+                scholarship.status?.toUpperCase() === "CHANGES_REQUESTED") && ( // Agregamos CHANGES_REQUESTED aquí
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-md shadow-sm transition-all text-white
                     ${
-                      scholarship.status === "CHANGES_REQUESTED"
+                      scholarship.status?.toUpperCase() === "CHANGES_REQUESTED"
                         ? "bg-red-600 hover:bg-red-700" // Rojo si es corrección
                         : "bg-primary-600 hover:bg-primary-700" // Azul normal
                     }`}
                 >
-                  {scholarship.status === "CHANGES_REQUESTED" ? (
+                  {scholarship.status?.toUpperCase() === "CHANGES_REQUESTED" ? (
                     <>
                       <RefreshCcw size={18} /> Corregir Documento
                     </>
@@ -220,7 +242,7 @@ const Dashboard = () => {
                 </button>
               )}
 
-              {scholarship.status === "DOCS_UPLOADED" && (
+              {scholarship.status?.toUpperCase() === "DOCS_UPLOADED" && (
                 <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
                   <Clock size={18} />
                   <span className="font-medium text-sm">
@@ -229,12 +251,46 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {(scholarship.status === "APPROVED" ||
-                scholarship.status === "PAID") && (
+              {/* FASE CONTRATO: Aprobado por banco o Rechazado por firma */}
+              {(scholarship.status?.toUpperCase() === "CONTRACT_GENERATED" ||
+                scholarship.status?.toUpperCase() === "CONTRACT_REJECTED") && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      downloadContract(
+                        studentData,
+                        scholarship,
+                        scholarship.academic_periods,
+                      )
+                    }
+                    className="flex items-center gap-2 bg-white text-primary-700 border border-primary-200 px-4 py-2 rounded-md hover:bg-gray-50 shadow-sm"
+                  >
+                    <Download size={18} /> Descargar Contrato
+                  </button>
+
+                  <button
+                    onClick={() => setIsContractModalOpen(true)}
+                    className="flex items-center gap-2 bg-primary-900 text-white px-4 py-2 rounded-md hover:bg-primary-800 shadow-sm"
+                  >
+                    <FileSignature size={18} /> Subir Firmado
+                  </button>
+                </div>
+              )}
+
+              {scholarship.status?.toUpperCase() === "CONTRACT_UPLOADED" && (
+                <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+                  <Clock size={18} />
+                  <span className="font-medium text-sm">
+                    Contrato en revisión legal
+                  </span>
+                </div>
+              )}
+
+              {scholarship.status?.toUpperCase() === "READY_FOR_PAYMENT" && (
                 <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
                   <CheckCircle size={18} />
                   <span className="font-medium text-sm">
-                    Beca Aprobada y Procesada
+                    Contrato Aceptado. Esperando desembolso.
                   </span>
                 </div>
               )}
@@ -263,6 +319,14 @@ const Dashboard = () => {
             onSuccess={() => {
               window.location.reload();
             }}
+          />
+        )}
+
+        {isContractModalOpen && scholarship && (
+          <ContractUploadModal
+            selectionId={scholarship.id}
+            onClose={() => setIsContractModalOpen(false)}
+            onSuccess={() => window.location.reload()}
           />
         )}
       </main>
