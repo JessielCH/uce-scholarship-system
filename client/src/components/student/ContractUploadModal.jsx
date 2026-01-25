@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../../services/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { UploadCloud, FileText, Loader2, Check } from "lucide-react";
+import { UploadCloud, FileText, Loader2, Check, X } from "lucide-react";
 
 const ContractUploadModal = ({ selectionId, onClose, onSuccess }) => {
   const { user } = useAuth();
@@ -13,7 +13,7 @@ const ContractUploadModal = ({ selectionId, onClose, onSuccess }) => {
     if (selectedFile && selectedFile.type === "application/pdf") {
       setFile(selectedFile);
     } else {
-      alert("Solo se permiten archivos PDF");
+      alert("Only PDF files are allowed.");
     }
   };
 
@@ -22,28 +22,30 @@ const ContractUploadModal = ({ selectionId, onClose, onSuccess }) => {
     setIsUploading(true);
 
     try {
-      const fileName = `${Date.now()}_contrato_firmado.pdf`;
+      // Use standard naming convention
+      const fileName = `${Date.now()}_signed_contract.pdf`;
+      // CRITICAL: Maintain user folder structure for RLS policies
       const filePath = `${user.id}/${fileName}`;
 
-      // 1. Subir al Storage
+      // 1. Upload to Storage
       const { error: uploadError } = await supabase.storage
         .from("scholarship-docs")
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // 2. Registrar en tabla documents
+      // 2. Register in 'documents' table
       const { error: docError } = await supabase.from("documents").insert({
         selection_id: selectionId,
-        document_type: "CONTRACT_SIGNED", // Tipo específico para contrato
+        document_type: "CONTRACT_SIGNED",
         file_path: filePath,
         version: 1,
       });
 
       if (docError) throw docError;
 
-      // 3. Actualizar Estado de la Beca
-      // Pasa a CONTRACT_UPLOADED para que el Staff lo revise
+      // 3. Update Scholarship Status
+      // Transitions to CONTRACT_UPLOADED for Staff review
       const { error: statusError } = await supabase
         .from("scholarship_selections")
         .update({ status: "CONTRACT_UPLOADED" })
@@ -63,58 +65,87 @@ const ContractUploadModal = ({ selectionId, onClose, onSuccess }) => {
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Error al subir contrato: " + error.message);
+      alert("Error uploading contract: " + error.message);
     } finally {
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Subir Contrato Firmado
-        </h2>
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-brand-blue">
+            Upload Signed Contract
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={24} />
+          </button>
+        </div>
 
         {!file ? (
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-gray-50 relative">
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:bg-blue-50 hover:border-brand-blue transition-all relative group cursor-pointer">
             <input
               type="file"
               accept="application/pdf"
               onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
-            <UploadCloud className="mx-auto h-12 w-12 text-primary-400 mb-2" />
-            <p className="text-gray-600 font-medium">Seleccionar PDF Firmado</p>
-            <p className="text-xs text-gray-400 mt-2">
-              Asegúrate de que la firma sea visible.
+            <div className="bg-blue-100 p-4 rounded-full inline-flex mb-4 group-hover:scale-110 transition-transform">
+              <UploadCloud className="h-8 w-8 text-brand-blue" />
+            </div>
+            <p className="text-gray-700 font-semibold text-lg">
+              Select Signed PDF
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Ensure your signature is clearly visible.
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-md">
-              <FileText className="text-blue-600" />
-              <span className="text-sm font-medium text-gray-900 truncate">
-                {file.name}
-              </span>
-            </div>
-            <div className="flex gap-3">
+          <div className="space-y-6 animate-in-delayed">
+            <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+              <div className="bg-white p-2 rounded shadow-sm">
+                <FileText className="text-brand-blue" size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {file.name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {(file.size / 1024).toFixed(0)} KB
+                </p>
+              </div>
               <button
                 onClick={() => setFile(null)}
-                className="flex-1 py-2 border rounded text-gray-600"
+                className="text-gray-400 hover:text-red-500"
               >
-                Cancelar
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
               </button>
               <button
                 onClick={handleUpload}
                 disabled={isUploading}
-                className="flex-1 py-2 bg-primary-900 text-white rounded flex justify-center items-center gap-2 hover:bg-primary-800"
+                className="flex-1 py-3 bg-brand-blue text-white rounded-lg font-bold shadow-md hover:bg-blue-800 transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isUploading ? (
-                  <Loader2 className="animate-spin" size={18} />
+                  <>
+                    <Loader2 className="animate-spin" size={20} /> Uploading...
+                  </>
                 ) : (
                   <>
-                    <Check size={18} /> Subir Contrato
+                    <Check size={20} /> Upload Contract
                   </>
                 )}
               </button>
