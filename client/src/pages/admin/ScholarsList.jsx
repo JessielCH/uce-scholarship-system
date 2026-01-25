@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabaseClient";
 import { sendNotification } from "../../utils/emailService";
+import { generateContractPDF } from "../../utils/generateContract";
 import { useAuth } from "../../context/AuthContext";
 import {
   CheckCircle,
@@ -84,6 +85,68 @@ const ScholarsList = () => {
     },
     onError: (err) => {
       alert("Error: " + err.message);
+      setProcessingId(null);
+    },
+  });
+
+  // MUTATION: Generar Contrato
+  const generateContractMutation = useMutation({
+    mutationFn: async ({ selection, student }) => {
+      setProcessingId(selection.id);
+
+      // 1. Generar PDF
+      const contractBlob = await generateContractPDF(student, selection, selection.academic_periods);
+
+      // 2. Subir a Storage
+      const fileName = `contrato_${selection.id}_${Date.now()}.pdf`;
+      const filePath = `contracts/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('scholarship-docs')
+        .upload(filePath, contractBlob);
+
+      if (uploadError) throw uploadError;
+
+      // 3. Registrar documento
+      const { error: docError } = await supabase.from('documents').insert({
+        selection_id: selection.id,
+        document_type: 'CONTRACT_UNSIGNED', // Cambiado de CONTRACT_GENERATED
+        file_path: filePath,
+        version: 1
+      });
+
+      if (docError) throw docError;
+
+      // 4. Actualizar estado
+      const { error: statusError } = await supabase
+        .from('scholarship_selections')
+        .update({ status: 'CONTRACT_GENERATED' })
+        .eq('id', selection.id);
+
+      if (statusError) throw statusError;
+
+      // 5. Audit Log
+      await supabase.from('audit_logs').insert({
+        action: 'GENERATE_CONTRACT',
+        target_entity: 'scholarship_selections',
+        target_id: selection.id,
+        details: { filename: fileName }
+      });
+
+      // 6. Enviar notificación
+      await sendNotification(
+        `${student.first_name} ${student.last_name}`,
+        student.university_email,
+        'CONTRACT_GENERATED',
+        ''
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["scholars"]);
+      setProcessingId(null);
+    },
+    onError: (err) => {
+      alert("Error generando contrato: " + err.message);
       setProcessingId(null);
     },
   });
@@ -176,38 +239,78 @@ const ScholarsList = () => {
                 </td>
 
                 <td className="px-6 py-4">
-                  {/* Buscamos si hay un certificado bancario */}
-                  {item.documents?.find(
-                    (d) => d.document_type === "BANK_CERT",
-                  ) ? (
-                    <button
-                      onClick={() =>
-                        handleOpenDocument(
-                          item.documents.find(
-                            (d) => d.document_type === "BANK_CERT",
-                          ).file_path,
-                        )
-                      }
-                      className="flex items-center text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium transition-colors"
-                    >
-                      <FileText size={16} className="mr-1" /> Ver Certificado
-                    </button>
-                  ) : (
-                    <span className="flex items-center text-xs text-gray-400">
-                      <XCircle size={14} className="mr-1" /> Sin archivo
-                    </span>
-                  )}
+                  <div className="space-y-2">
+                    {/* Certificado Bancario */}
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">Bancario:</span>
+                      {item.documents?.find(
+                        (d) => d.document_type === "BANK_CERT",
+                      ) ? (
+                        <button
+                          onClick={() =>
+                            handleOpenDocument(
+                              item.documents.find(
+                                (d) => d.document_type === "BANK_CERT",
+                              ).file_path,
+                            )
+                          }
+                          className="ml-2 flex items-center text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium transition-colors"
+                        >
+                          <FileText size={14} className="mr-1" /> Ver
+                        </button>
+                      ) : (
+                        <span className="ml-2 flex items-center text-xs text-gray-400">
+                          <XCircle size={12} className="mr-1" /> No
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Contrato Generado */}
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">Contrato:</span>
+                      {item.documents?.find(
+                        (d) => d.document_type === "CONTRACT_UNSIGNED" || d.document_type === "CONTRACT_SIGNED",
+                      ) ? (
+                        <button
+                          onClick={() =>
+                            handleOpenDocument(
+                              item.documents.find(
+                                (d) => d.document_type === "CONTRACT_UNSIGNED" || d.document_type === "CONTRACT_SIGNED",
+                              ).file_path,
+                            )
+                          }
+                          className="ml-2 flex items-center text-green-600 hover:text-green-800 hover:underline text-sm font-medium transition-colors"
+                        >
+                          <FileText size={14} className="mr-1" /> Ver
+                        </button>
+                      ) : (
+                        <span className="ml-2 flex items-center text-xs text-gray-400">
+                          <XCircle size={12} className="mr-1" /> No
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </td>
 
                 <td className="px-6 py-4">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                     ${
-                      item.status === "PAID"
+                      item.status?.toUpperCase() === "PAID"
                         ? "bg-green-100 text-green-800"
-                        : item.status === "DOCS_UPLOADED"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-800"
+                        : item.status?.toUpperCase() === "READY_FOR_PAYMENT"
+                          ? "bg-blue-100 text-blue-800"
+                          : item.status?.toUpperCase() === "CONTRACT_UPLOADED"
+                            ? "bg-purple-100 text-purple-800"
+                            : item.status?.toUpperCase() === "CONTRACT_GENERATED"
+                              ? "bg-cyan-100 text-cyan-800"
+                              : item.status?.toUpperCase() === "CONTRACT_REJECTED"
+                                ? "bg-red-100 text-red-800"
+                                : item.status?.toUpperCase() === "APPROVED"
+                                  ? "bg-indigo-100 text-indigo-800"
+                                  : item.status?.toUpperCase() === "DOCS_UPLOADED"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-gray-100 text-gray-800"
                     }`}
                   >
                     {item.status}
@@ -220,7 +323,7 @@ const ScholarsList = () => {
                   ) : (
                     <div className="flex justify-end gap-2">
                       {/* ACCIONES PARA ESTADO: DOCS_UPLOADED */}
-                      {item.status === "DOCS_UPLOADED" && (
+                      {item.status?.toUpperCase() === "DOCS_UPLOADED" && (
                         <>
                           <button
                             onClick={() =>
@@ -253,7 +356,55 @@ const ScholarsList = () => {
                       )}
 
                       {/* ACCIONES PARA ESTADO: APPROVED */}
-                      {item.status === "APPROVED" && (
+                      {item.status?.toUpperCase() === "APPROVED" && (
+                        <button
+                          onClick={() =>
+                            generateContractMutation.mutate({
+                              selection: item,
+                              student: item.students,
+                            })
+                          }
+                          className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                        >
+                          <FileText size={16} /> Generar Contrato
+                        </button>
+                      )}
+
+                      {/* ACCIONES PARA ESTADO: CONTRACT_UPLOADED */}
+                      {item.status?.toUpperCase() === "CONTRACT_UPLOADED" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                id: item.id,
+                                newStatus: "CONTRACT_REJECTED",
+                                student: item.students,
+                                reason: "Contrato inválido o firma ilegible",
+                              })
+                            }
+                            className="text-red-600 hover:text-red-900 mr-2"
+                            title="Rechazar Contrato"
+                          >
+                            <XCircle size={20} />
+                          </button>
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                id: item.id,
+                                newStatus: "READY_FOR_PAYMENT",
+                                student: item.students,
+                              })
+                            }
+                            className="text-green-600 hover:text-green-900"
+                            title="Aprobar Contrato"
+                          >
+                            <CheckCircle size={20} />
+                          </button>
+                        </>
+                      )}
+
+                      {/* ACCIONES PARA ESTADO: READY_FOR_PAYMENT */}
+                      {item.status?.toUpperCase() === "READY_FOR_PAYMENT" && (
                         <button
                           onClick={() =>
                             statusMutation.mutate({
@@ -268,9 +419,62 @@ const ScholarsList = () => {
                         </button>
                       )}
 
-                      {item.status === "PAID" && (
+                      {item.status?.toUpperCase() === "PAID" && (
                         <span className="text-gray-400 text-xs">
                           Finalizado
+                        </span>
+                      )}
+
+                      {item.status?.toUpperCase() === "CONTRACT_REJECTED" && (
+                        <span className="text-orange-600 text-xs">
+                          Contrato Rechazado - Esperando nuevo upload
+                        </span>
+                      )}
+
+                      {item.status?.toUpperCase() === "CONTRACT_GENERATED" && (
+                        <span className="text-cyan-600 text-xs">
+                          Contrato generado - Esperando firma del estudiante
+                        </span>
+                      )}
+
+                      {/* ACCIONES PARA ESTADO: SELECTED */}
+                      {item.status?.toUpperCase() === "SELECTED" && (
+                        <button
+                          onClick={() =>
+                            statusMutation.mutate({
+                              id: item.id,
+                              newStatus: "DOCS_UPLOADED",
+                              student: item.students,
+                            })
+                          }
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Marcar como con documentos subidos (para testing)"
+                        >
+                          <CheckCircle size={20} />
+                        </button>
+                      )}
+
+                      {/* ACCIONES PARA ESTADO: NOTIFIED */}
+                      {item.status?.toUpperCase() === "NOTIFIED" && (
+                        <button
+                          onClick={() =>
+                            statusMutation.mutate({
+                              id: item.id,
+                              newStatus: "DOCS_UPLOADED",
+                              student: item.students,
+                            })
+                          }
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Marcar como con documentos subidos"
+                        >
+                          <CheckCircle size={20} />
+                        </button>
+                      )}
+
+                      {/* MOSTRAR STATUS SI NO HAY ACCIONES */}
+                      {!["DOCS_UPLOADED", "APPROVED", "CONTRACT_UPLOADED", "READY_FOR_PAYMENT", "PAID", "CONTRACT_REJECTED", "CONTRACT_GENERATED", "SELECTED", "NOTIFIED"].includes(item.status?.toUpperCase()) && (
+                        <span className="text-gray-500 text-xs">
+                          Estado: {item.status || "Sin estado"}
                         </span>
                       )}
                     </div>
