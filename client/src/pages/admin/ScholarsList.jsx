@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabaseClient";
 import { sendNotification } from "../../utils/emailService";
 import { generateContractPDF } from "../../utils/generateContract";
+import { generateReceiptPDF } from "../../utils/generateReceipt";
 import { useAuth } from "../../context/AuthContext";
 import {
   CheckCircle,
@@ -45,48 +46,82 @@ const ScholarsList = () => {
     queryFn: fetchScholars,
   });
 
-  // MUTATION: Actualizar Estado (Aprobar/Rechazar/Pagar)
+  // MUTATION: Actualizar Estado con Lógica de Pago
   const statusMutation = useMutation({
-    mutationFn: async ({ id, newStatus, student, reason = "" }) => {
+    mutationFn: async ({ id, newStatus, student, scholarshipData, reason = '' }) => {
       setProcessingId(id);
 
-      // 1. Actualizar BD
-      const { error: updateError } = await supabase
-        .from("scholarship_selections")
-        .update({
-          status: newStatus,
-          rejection_reason: reason,
-          // Si pagamos, guardamos fecha
-          payment_date: newStatus === "PAID" ? new Date() : null,
-        })
-        .eq("id", id);
+      try {
+        // CASO ESPECIAL: SI ES PAGO ('PAID'), GENERAMOS EL COMPROBANTE
+        if (newStatus === 'PAID') {
+           console.log("🖨️ Generando comprobante de pago...");
 
-      if (updateError) throw updateError;
+           // 1. Generar Blob del PDF
+           const pdfBlob = generateReceiptPDF(student, scholarshipData);
+           const fileName = `${Date.now()}_comprobante_pago.pdf`;
+           const filePath = `receipts/${fileName}`; // Carpeta receipts (opcional) o raíz
 
-      // 2. Audit Log
-      await supabase.from("audit_logs").insert({
-        action: `CHANGE_STATUS_${newStatus}`,
-        target_entity: "scholarship_selections",
-        target_id: id,
-        details: { reason },
-      });
+           // 2. Subir a Supabase Storage
+           const { error: uploadError } = await supabase.storage
+             .from('scholarship-docs')
+             .upload(filePath, pdfBlob);
 
-      // 3. Enviar Correo
-      await sendNotification(
-        `${student.first_name} ${student.last_name}`,
-        student.university_email,
-        newStatus,
-        reason,
-      );
+           if (uploadError) throw uploadError;
+
+           // 3. Crear Registro en documents
+           const { error: docError } = await supabase.from('documents').insert({
+             selection_id: id,
+             document_type: 'PAYMENT_RECEIPT', // <--- NUEVO TIPO
+             file_path: filePath,
+             version: 1
+           });
+
+           if (docError) throw docError;
+        }
+
+        // --- FLUJO NORMAL DE ACTUALIZACIÓN ---
+
+        // 4. Actualizar estado en scholarship_selections
+        const { error: updateError } = await supabase
+          .from('scholarship_selections')
+          .update({
+              status: newStatus,
+              rejection_reason: reason,
+              payment_date: newStatus === 'PAID' ? new Date() : null
+          })
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        // 5. Audit Log
+        await supabase.from('audit_logs').insert({
+          action: `CHANGE_STATUS_${newStatus}`,
+          target_entity: 'scholarship_selections',
+          target_id: id,
+          details: { reason, generated_receipt: newStatus === 'PAID' }
+        });
+
+        // 6. Enviar Correo
+        await sendNotification(
+            `${student.first_name} ${student.last_name}`,
+            student.university_email,
+            newStatus,
+            reason
+        );
+
+      } catch (err) {
+        console.error("Error en proceso:", err);
+        throw err; // Para que useMutation sepa que falló
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["scholars"]);
+      queryClient.invalidateQueries(['scholars']);
       setProcessingId(null);
     },
     onError: (err) => {
-      alert("Error: " + err.message);
-      setProcessingId(null);
-    },
+        alert("Error: " + err.message);
+        setProcessingId(null);
+    }
   });
 
   // MUTATION: Generar Contrato
@@ -95,50 +130,54 @@ const ScholarsList = () => {
       setProcessingId(selection.id);
 
       // 1. Generar PDF
-      const contractBlob = await generateContractPDF(student, selection, selection.academic_periods);
+      const contractBlob = await generateContractPDF(
+        student,
+        selection,
+        selection.academic_periods,
+      );
 
       // 2. Subir a Storage
       const fileName = `contrato_${selection.id}_${Date.now()}.pdf`;
       const filePath = `contracts/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('scholarship-docs')
+        .from("scholarship-docs")
         .upload(filePath, contractBlob);
 
       if (uploadError) throw uploadError;
 
       // 3. Registrar documento
-      const { error: docError } = await supabase.from('documents').insert({
+      const { error: docError } = await supabase.from("documents").insert({
         selection_id: selection.id,
-        document_type: 'CONTRACT_UNSIGNED', // Cambiado de CONTRACT_GENERATED
+        document_type: "CONTRACT_UNSIGNED", // Cambiado de CONTRACT_GENERATED
         file_path: filePath,
-        version: 1
+        version: 1,
       });
 
       if (docError) throw docError;
 
       // 4. Actualizar estado
       const { error: statusError } = await supabase
-        .from('scholarship_selections')
-        .update({ status: 'CONTRACT_GENERATED' })
-        .eq('id', selection.id);
+        .from("scholarship_selections")
+        .update({ status: "CONTRACT_GENERATED" })
+        .eq("id", selection.id);
 
       if (statusError) throw statusError;
 
       // 5. Audit Log
-      await supabase.from('audit_logs').insert({
-        action: 'GENERATE_CONTRACT',
-        target_entity: 'scholarship_selections',
+      await supabase.from("audit_logs").insert({
+        action: "GENERATE_CONTRACT",
+        target_entity: "scholarship_selections",
         target_id: selection.id,
-        details: { filename: fileName }
+        details: { filename: fileName },
       });
 
       // 6. Enviar notificación
       await sendNotification(
         `${student.first_name} ${student.last_name}`,
         student.university_email,
-        'CONTRACT_GENERATED',
-        ''
+        "CONTRACT_GENERATED",
+        "",
       );
     },
     onSuccess: () => {
@@ -242,7 +281,9 @@ const ScholarsList = () => {
                   <div className="space-y-2">
                     {/* Certificado Bancario */}
                     <div>
-                      <span className="text-xs font-medium text-gray-500">Bancario:</span>
+                      <span className="text-xs font-medium text-gray-500">
+                        Bancario:
+                      </span>
                       {item.documents?.find(
                         (d) => d.document_type === "BANK_CERT",
                       ) ? (
@@ -264,18 +305,24 @@ const ScholarsList = () => {
                         </span>
                       )}
                     </div>
-                    
+
                     {/* Contrato Generado */}
                     <div>
-                      <span className="text-xs font-medium text-gray-500">Contrato:</span>
+                      <span className="text-xs font-medium text-gray-500">
+                        Contrato:
+                      </span>
                       {item.documents?.find(
-                        (d) => d.document_type === "CONTRACT_UNSIGNED" || d.document_type === "CONTRACT_SIGNED",
+                        (d) =>
+                          d.document_type === "CONTRACT_UNSIGNED" ||
+                          d.document_type === "CONTRACT_SIGNED",
                       ) ? (
                         <button
                           onClick={() =>
                             handleOpenDocument(
                               item.documents.find(
-                                (d) => d.document_type === "CONTRACT_UNSIGNED" || d.document_type === "CONTRACT_SIGNED",
+                                (d) =>
+                                  d.document_type === "CONTRACT_UNSIGNED" ||
+                                  d.document_type === "CONTRACT_SIGNED",
                               ).file_path,
                             )
                           }
@@ -302,13 +349,16 @@ const ScholarsList = () => {
                           ? "bg-blue-100 text-blue-800"
                           : item.status?.toUpperCase() === "CONTRACT_UPLOADED"
                             ? "bg-purple-100 text-purple-800"
-                            : item.status?.toUpperCase() === "CONTRACT_GENERATED"
+                            : item.status?.toUpperCase() ===
+                                "CONTRACT_GENERATED"
                               ? "bg-cyan-100 text-cyan-800"
-                              : item.status?.toUpperCase() === "CONTRACT_REJECTED"
+                              : item.status?.toUpperCase() ===
+                                  "CONTRACT_REJECTED"
                                 ? "bg-red-100 text-red-800"
                                 : item.status?.toUpperCase() === "APPROVED"
                                   ? "bg-indigo-100 text-indigo-800"
-                                  : item.status?.toUpperCase() === "DOCS_UPLOADED"
+                                  : item.status?.toUpperCase() ===
+                                      "DOCS_UPLOADED"
                                     ? "bg-yellow-100 text-yellow-800"
                                     : "bg-gray-100 text-gray-800"
                     }`}
@@ -411,6 +461,7 @@ const ScholarsList = () => {
                               id: item.id,
                               newStatus: "PAID",
                               student: item.students,
+                              scholarshipData: item // <--- IMPORTANTE: Pasamos todo el objeto para tener datos de carrera, cuenta, etc.
                             })
                           }
                           className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
@@ -420,9 +471,19 @@ const ScholarsList = () => {
                       )}
 
                       {item.status?.toUpperCase() === "PAID" && (
-                        <span className="text-gray-400 text-xs">
-                          Finalizado
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="text-green-600 font-bold text-xs">¡PAGADO!</span>
+
+                            {/* BUSCAMOS EL COMPROBANTE EN LOS DOCUMENTOS */}
+                            {item.documents?.find(d => d.document_type === 'PAYMENT_RECEIPT') && (
+                                <button
+                                    onClick={() => handleOpenDocument(item.documents.find(d => d.document_type === 'PAYMENT_RECEIPT').file_path)}
+                                    className="text-xs text-blue-600 hover:underline flex items-center"
+                                >
+                                    <FileText size={12} className="mr-1"/> Comprobante
+                                </button>
+                            )}
+                        </div>
                       )}
 
                       {item.status?.toUpperCase() === "CONTRACT_REJECTED" && (
@@ -472,7 +533,17 @@ const ScholarsList = () => {
                       )}
 
                       {/* MOSTRAR STATUS SI NO HAY ACCIONES */}
-                      {!["DOCS_UPLOADED", "APPROVED", "CONTRACT_UPLOADED", "READY_FOR_PAYMENT", "PAID", "CONTRACT_REJECTED", "CONTRACT_GENERATED", "SELECTED", "NOTIFIED"].includes(item.status?.toUpperCase()) && (
+                      {![
+                        "DOCS_UPLOADED",
+                        "APPROVED",
+                        "CONTRACT_UPLOADED",
+                        "READY_FOR_PAYMENT",
+                        "PAID",
+                        "CONTRACT_REJECTED",
+                        "CONTRACT_GENERATED",
+                        "SELECTED",
+                        "NOTIFIED",
+                      ].includes(item.status?.toUpperCase()) && (
                         <span className="text-gray-500 text-xs">
                           Estado: {item.status || "Sin estado"}
                         </span>
