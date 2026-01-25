@@ -2,8 +2,9 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import "./index.css";
 
-// Importa tus páginas reales
+// Page Imports
 import Login from "./pages/Login";
 import Dashboard from "./pages/student/Dashboard";
 import AdminLayout from "./components/layout/AdminLayout";
@@ -17,23 +18,25 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Rutas Públicas */}
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
 
-          {/* Rutas Protegidas */}
+          {/* Protected Routes (Students & General Users) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
-          {/* Rutas ADMIN / STAFF */}
+          {/* ADMIN / STAFF Routes */}
           <Route element={<RoleRoute allowedRoles={["ADMIN", "STAFF"]} />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route
                 index
                 element={
                   <div className="p-4">
-                    <h1>Dashboard Overview (Estadísticas)</h1>
+                    <h1 className="text-2xl font-bold text-brand-blue">
+                      Dashboard Overview (Statistics)
+                    </h1>
                   </div>
                 }
               />
@@ -43,12 +46,14 @@ function App() {
                 path="audit"
                 element={
                   <div className="p-4">
-                    <h1>Logs de Auditoría (Fase 6)</h1>
+                    <h1 className="text-2xl font-bold text-gray-700">
+                      Audit Logs (Phase 6)
+                    </h1>
                   </div>
                 }
               />
 
-              {/* Ruta solo para ADMIN PURO */}
+              {/* ADMIN Only Routes */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="settings" element={<StaffSettings />} />
               </Route>

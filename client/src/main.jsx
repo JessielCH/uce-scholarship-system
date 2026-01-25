@@ -5,12 +5,12 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import App from "./App";
 import "./index.css";
 
-// Configuración profesional: reintentos limitados y staleTime para evitar peticiones basura
+// Professional configuration: limited retries and staleTime to prevent unnecessary requests
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 1000 * 60 * 5, // Datos frescos por 5 minutos
+      staleTime: 1000 * 60 * 5, // Data remains fresh for 5 minutes
       refetchOnWindowFocus: false,
     },
   },
