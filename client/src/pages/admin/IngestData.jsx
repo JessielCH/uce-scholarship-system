@@ -20,7 +20,7 @@ const IngestData = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // 'success' | 'error'
 
-  // Obtener periodo activo automáticamente
+  // Fetch active period automatically
   const { data: activePeriod } = useQuery({
     queryKey: ["activePeriod"],
     queryFn: async () => {
@@ -29,7 +29,7 @@ const IngestData = () => {
         .select("*")
         .eq("is_active", true)
         .single();
-      return data || { id: null, name: "Periodo Desconocido" }; // Fallback
+      return data || { id: null, name: "Unknown Period" };
     },
   });
 
@@ -47,7 +47,7 @@ const IngestData = () => {
       const ws = workbook.Sheets[wsname];
       const rawData = XLSX.utils.sheet_to_json(ws);
 
-      // Procesar Algoritmo Localmente
+      // Process Algorithm Locally
       const { processedData, stats } = processScholarshipFile(rawData);
       setPreviewData(processedData);
       setStats(stats);
@@ -58,13 +58,13 @@ const IngestData = () => {
 
   const handleSaveToDB = async () => {
     if (!activePeriod?.id) {
-      alert("No hay un periodo académico activo configurado en la BD.");
+      alert("No active academic period configured in the database.");
       return;
     }
 
     setIsUploading(true);
     try {
-      // 1. Preparar Upsert de Estudiantes (Lote masivo)
+      // 1. Prepare Students Upsert (Mass Batch)
       const studentsPayload = previewData.map((s) => ({
         national_id: s.national_id,
         first_name: s.first_name,
@@ -72,7 +72,7 @@ const IngestData = () => {
         university_email: s.university_email,
       }));
 
-      // Insertar Estudiantes (Upsert para no duplicar, actualiza nombres si cambiaron)
+      // Insert Students (Upsert)
       const { data: savedStudents, error: stuError } = await supabase
         .from("students")
         .upsert(studentsPayload, { onConflict: "university_email" })
@@ -80,17 +80,14 @@ const IngestData = () => {
 
       if (stuError) throw stuError;
 
-      // Crear mapa de correo -> ID para enlazar las becas
+      // Map email -> ID
       const emailToIdMap = {};
       savedStudents.forEach((s) => (emailToIdMap[s.university_email] = s.id));
 
-      // 2. Preparar Becas (Solo los SELECCIONADOS)
+      // 2. Prepare Scholarships (Only SELECTED)
       const selectedStudents = previewData.filter((s) => s.is_selected);
 
-      // Necesitamos los IDs de Carreras.
-      // OPTIMIZACIÓN: Asumimos que las carreras ya existen o las creamos al vuelo.
-      // Para simplificar este sprint, asumiremos que existen. Si no, habría que insertarlas antes.
-      // Haremos un fetch de todas las carreras para mapear nombres a IDs.
+      // Fetch careers for ID mapping
       const { data: careersDB } = await supabase
         .from("careers")
         .select("id, name");
@@ -99,10 +96,8 @@ const IngestData = () => {
 
       for (const s of selectedStudents) {
         const studentId = emailToIdMap[s.university_email];
-        // Buscar ID de carrera (simple matching)
         const careerId = careersDB?.find((c) => c.name === s.career)?.id;
 
-        // Si la carrera no existe en BD, saltamos o usamos un ID genérico (Manejo de errores básico)
         if (studentId && careerId) {
           selectionsPayload.push({
             student_id: studentId,
@@ -138,10 +133,10 @@ const IngestData = () => {
       });
 
       setUploadStatus("success");
-      setFile(null); // Reset UI pero dejar preview visible como confirmación
+      setFile(null);
     } catch (error) {
       console.error(error);
-      alert("Error al guardar en BD: " + error.message);
+      alert("Error saving to DB: " + error.message);
       setUploadStatus("error");
     } finally {
       setIsUploading(false);
@@ -149,40 +144,46 @@ const IngestData = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Ingesta de Datos Académicos
+          <h1 className="text-2xl font-bold text-brand-blue">
+            Academic Data Ingestion
           </h1>
-          <p className="text-sm text-gray-500">
-            Periodo Activo:{" "}
-            <span className="font-semibold text-primary-600">
-              {activePeriod?.name || "Cargando..."}
+          <p className="text-sm text-gray-500 mt-1">
+            Active Period:{" "}
+            <span className="font-semibold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+              {activePeriod?.name || "Loading..."}
             </span>
           </p>
         </div>
 
         {stats && (
-          <div className="flex gap-4 bg-white p-2 rounded-lg shadow-sm text-sm">
-            <div className="px-3 border-r">
-              <span className="block text-gray-400 text-xs">
-                Total Procesado
+          <div className="flex gap-4 bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-sm">
+            <div className="px-3 border-r border-gray-100">
+              <span className="block text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                Total Processed
               </span>
-              <span className="font-bold text-xl">{stats.total}</span>
+              <span className="font-bold text-xl text-gray-800">
+                {stats.total}
+              </span>
             </div>
-            <div className="px-3 border-r">
-              <span className="block text-gray-400 text-xs">
-                Seleccionados (Top 10%)
+            <div className="px-3 border-r border-gray-100">
+              <span className="block text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                Selected (Top 10%)
               </span>
-              <span className="font-bold text-xl text-green-600">
+              <span className="font-bold text-xl text-status-success">
                 {stats.selected}
               </span>
             </div>
             <div className="px-3">
-              <span className="block text-gray-400 text-xs">Carreras</span>
-              <span className="font-bold text-xl">{stats.careers}</span>
+              <span className="block text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                Careers
+              </span>
+              <span className="font-bold text-xl text-gray-800">
+                {stats.careers}
+              </span>
             </div>
           </div>
         )}
@@ -190,23 +191,23 @@ const IngestData = () => {
 
       {/* Upload Zone */}
       {!file && !uploadStatus && (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:bg-gray-50 transition-colors relative">
+        <div className="border-2 border-dashed border-gray-300 rounded-xl p-16 text-center hover:bg-blue-50 hover:border-brand-blue transition-all relative group">
           <input
             type="file"
             accept=".xlsx, .xls"
             onChange={handleFileUpload}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
-          <div className="flex flex-col items-center">
-            <div className="p-4 bg-primary-50 rounded-full mb-4">
-              <UploadCloud className="h-8 w-8 text-primary-600" />
+          <div className="flex flex-col items-center pointer-events-none">
+            <div className="p-4 bg-blue-100 rounded-full mb-4 group-hover:scale-110 transition-transform">
+              <UploadCloud className="h-10 w-10 text-brand-blue" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900">
-              Arrastra tu archivo Excel aquí
+            <h3 className="text-lg font-bold text-gray-900">
+              Drag your Excel file here
             </h3>
-            <p className="text-gray-500 mt-1">o haz clic para seleccionar</p>
-            <p className="text-xs text-gray-400 mt-4">
-              Formato requerido: Cedula, Nombres, Apellidos, Correo, Facultad,
+            <p className="text-gray-500 mt-1">or click to browse</p>
+            <p className="text-xs text-gray-400 mt-4 bg-gray-100 px-3 py-1 rounded-full">
+              Required columns: Cedula, Nombres, Apellidos, Correo, Facultad,
               Carrera, Semestre, Promedio, Condicion
             </p>
           </div>
@@ -215,44 +216,47 @@ const IngestData = () => {
 
       {/* File Loaded State */}
       {file && (
-        <div className="bg-white border rounded-lg p-4 flex justify-between items-center shadow-sm">
-          <div className="flex items-center gap-3">
-            <FileSpreadsheet className="text-green-600 h-8 w-8" />
+        <div className="bg-white border border-gray-200 rounded-xl p-5 flex justify-between items-center shadow-sm animate-fade-in">
+          <div className="flex items-center gap-4">
+            <div className="bg-green-100 p-2 rounded-lg">
+              <FileSpreadsheet className="text-green-600 h-8 w-8" />
+            </div>
             <div>
-              <p className="font-medium text-gray-900">{file.name}</p>
-              <p className="text-xs text-gray-500">
+              <p className="font-bold text-gray-900">{file.name}</p>
+              <p className="text-xs text-gray-500 font-mono">
                 {(file.size / 1024).toFixed(2)} KB
               </p>
             </div>
           </div>
 
           {uploadStatus === "success" ? (
-            <span className="flex items-center text-green-600 font-bold px-4 py-2 bg-green-50 rounded-md">
-              <CheckCircle className="mr-2 h-5 w-5" /> Datos Guardados
+            <span className="flex items-center text-green-700 font-bold px-4 py-2 bg-green-50 rounded-lg border border-green-200">
+              <CheckCircle className="mr-2 h-5 w-5" /> Data Saved Successfully
             </span>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 onClick={() => {
                   setFile(null);
                   setPreviewData([]);
                   setStats(null);
                 }}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-md"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Discard"
               >
                 <Trash2 size={20} />
               </button>
               <button
                 onClick={handleSaveToDB}
                 disabled={isUploading || !activePeriod?.id}
-                className="flex items-center bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                className="flex items-center bg-brand-blue text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 transition-colors shadow-md"
               >
                 {isUploading ? (
                   <Loader2 className="animate-spin mr-2" />
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                Confirmar e Importar
+                Confirm & Import
               </button>
             </div>
           )}
@@ -261,37 +265,38 @@ const IngestData = () => {
 
       {/* Preview Table */}
       {previewData.length > 0 && (
-        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-700">
-              Pre-visualización de Resultados
+        <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 animate-in-delayed">
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+              Result Preview
             </h3>
+            <span className="text-xs text-gray-500">Showing first 50 rows</span>
           </div>
           <div className="overflow-x-auto max-h-[500px]">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Estudiante
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Student
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Carrera
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Career
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Promedio
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Avg Grade
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Estado Calc.
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {previewData.slice(0, 50).map((row, idx) => (
                   <tr
                     key={idx}
-                    className={row.is_selected ? "bg-green-50" : ""}
+                    className={`transition-colors hover:bg-gray-50 ${row.is_selected ? "bg-green-50/50" : ""}`}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {row.first_name} {row.last_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -302,11 +307,11 @@ const IngestData = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {row.is_selected ? (
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          Seleccionado (Corte: {row.cutoff_used})
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700 border border-green-200">
+                          Selected (Cutoff: {row.cutoff_used})
                         </span>
                       ) : (
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
+                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-500 border border-gray-200">
                           {row.rejection_reason}
                         </span>
                       )}
@@ -315,11 +320,6 @@ const IngestData = () => {
                 ))}
               </tbody>
             </table>
-            {previewData.length > 50 && (
-              <div className="p-4 text-center text-sm text-gray-500 bg-gray-50">
-                Mostrando 50 de {previewData.length} registros...
-              </div>
-            )}
           </div>
         </div>
       )}

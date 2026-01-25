@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../services/supabaseClient";
 
-// Creamos el contexto
+// Create context
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Verificar sesión activa al inicio
+    // 1. Check active session on startup
     const checkSession = async () => {
       try {
         const {
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
           setUser(null);
         }
       } catch (error) {
-        console.error("Error verificando sesión:", error);
+        console.error("Error verifying session:", error);
       } finally {
         setLoading(false);
       }
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
 
     checkSession();
 
-    // 2. Escuchar cambios en la autenticación
+    // 2. Listen for authentication changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -76,11 +76,11 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Hook personalizado para usar el contexto
+// Custom hook to use context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth debe ser usado dentro de un AuthProvider");
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
