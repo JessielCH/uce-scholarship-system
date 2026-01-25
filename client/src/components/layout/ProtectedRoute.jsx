@@ -5,12 +5,13 @@ import { useAuth } from "../../context/AuthContext";
 export const ProtectedRoute = () => {
   const { user, loading } = useAuth();
 
-  // Skeleton simple de carga
+  // Enhanced Loading Skeleton
   if (loading)
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="animate-pulse text-primary-600 font-semibold">
-          Cargando sistema...
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-brand-gray">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div>
+        <div className="mt-4 animate-pulse text-brand-blue font-semibold text-lg">
+          Loading system...
         </div>
       </div>
     );
