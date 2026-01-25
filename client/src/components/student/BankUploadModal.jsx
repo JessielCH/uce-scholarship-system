@@ -1,69 +1,73 @@
 import React, { useState } from "react";
 import { extractBankAccount } from "../../utils/ocrLogic";
 import { supabase } from "../../services/supabaseClient";
-import { useAuth } from "../../context/AuthContext"; // <--- IMPORTAR ESTO
+import { useAuth } from "../../context/AuthContext";
 import {
   UploadCloud,
   Check,
   AlertCircle,
   Loader2,
   FileText,
+  X,
 } from "lucide-react";
 
 const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
-  const { user } = useAuth(); // <--- OBTENER USUARIO ACTUAL
+  const { user } = useAuth();
   const [file, setFile] = useState(null);
   const [accountNumber, setAccountNumber] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [step, setStep] = useState(1);
 
-  // ... (handleFileSelect se mantiene igual) ...
   const handleFileSelect = async (e) => {
-    // ... mismo código de antes ...
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
+
+    // Validation
     if (selectedFile.type !== "application/pdf") {
-      alert("Solo se permiten archivos PDF");
+      alert("Only PDF files are allowed.");
       return;
     }
+
     setFile(selectedFile);
     setIsScanning(true);
-    const detectedAccount = await extractBankAccount(selectedFile);
-    if (detectedAccount) setAccountNumber(detectedAccount);
-    setIsScanning(false);
-    setStep(2);
+
+    try {
+      // OCR Logic
+      const detectedAccount = await extractBankAccount(selectedFile);
+      if (detectedAccount) setAccountNumber(detectedAccount);
+    } catch (error) {
+      console.error("OCR Error", error);
+    } finally {
+      setIsScanning(false);
+      setStep(2);
+    }
   };
 
   const handleConfirmUpload = async () => {
     if (!accountNumber) {
-      alert("Por favor ingresa un número de cuenta válido");
+      alert("Please enter a valid account number.");
       return;
     }
 
     setIsUploading(true);
-    console.log("Iniciando subida..."); // Debug
 
     try {
-      // CORRECCIÓN CRÍTICA: Usar user.id en lugar de studentId para la carpeta
-      // Esto satisface la política RLS: (storage.foldername(name))[1] = auth.uid()
-      const fileName = `${Date.now()}_certificado.pdf`;
+      // CRITICAL FIX: Use user.id instead of studentId for folder security policies
+      // RLS Policy: (storage.foldername(name))[1] = auth.uid()
+      const fileName = `${Date.now()}_certificate.pdf`;
       const filePath = `${user.id}/${fileName}`;
 
-      console.log("Subiendo a:", filePath); // Debug
-
-      // 1. Subir a Storage
+      // 1. Upload to Storage
       const { data, error: uploadError } = await supabase.storage
         .from("scholarship-docs")
         .upload(filePath, file);
 
       if (uploadError) {
-        console.error("Error Storage:", uploadError);
-        throw new Error(`Error subiendo archivo: ${uploadError.message}`);
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // 2. Registrar en BD
-      // Ojo: Obtenemos la URL pública o path para referencia
+      // 2. Register in Database
       const { error: docError } = await supabase.from("documents").insert({
         selection_id: selectionId,
         document_type: "BANK_CERT",
@@ -72,11 +76,10 @@ const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
       });
 
       if (docError) {
-        console.error("Error BD Document:", docError);
-        throw new Error(`Error guardando referencia: ${docError.message}`);
+        throw new Error(`Database reference failed: ${docError.message}`);
       }
 
-      // 3. Actualizar Estado Beca
+      // 3. Update Scholarship Status
       const { error: updateError } = await supabase
         .from("scholarship_selections")
         .update({
@@ -95,76 +98,135 @@ const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
         details: { file: fileName, detected_account: accountNumber },
       });
 
-      alert("¡Documento subido correctamente!"); // Feedback explícito
+      // Success Feedback
       onSuccess();
       onClose();
     } catch (error) {
-      console.error("Catch Error:", error);
+      console.error("Upload process error:", error);
       alert(error.message);
     } finally {
       setIsUploading(false);
     }
   };
 
-  // ... (El return del render se mantiene igual) ...
   return (
-    // ... tu código JSX anterior ...
-    // Asegúrate de usar el código JSX que ya tenías
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      {/* ... contenido del modal ... */}
-      <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
-        {/* RENDERIZADO CONDICIONAL DE PASOS (Igual que antes) */}
-        {step === 1 && (
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-gray-50 relative">
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-            <UploadCloud className="mx-auto h-12 w-12 text-primary-400 mb-2" />
-            <p className="text-gray-600 font-medium">
-              Toca para seleccionar PDF
-            </p>
-            {isScanning && (
-              <div className="mt-4 text-primary-600 flex justify-center items-center gap-2">
-                <Loader2 className="animate-spin" /> Escaneando...
-              </div>
-            )}
-          </div>
-        )}
+    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-lg text-brand-blue">
+            Upload Bank Certificate
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-        {step === 2 && (
-          <div className="space-y-4">
-            <p className="font-bold text-gray-800">Confirmar Datos</p>
-            <div>
-              <label className="block text-sm text-gray-600">
-                Cuenta Detectada:
-              </label>
+        <div className="p-6">
+          {/* STEP 1: Upload & Scan */}
+          {step === 1 && (
+            <div className="group relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-blue-50 hover:border-brand-blue transition-all cursor-pointer">
               <input
-                type="text"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                className="w-full border p-2 rounded"
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
+
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="p-3 bg-blue-100 text-brand-blue rounded-full group-hover:scale-110 transition-transform">
+                  <UploadCloud size={32} />
+                </div>
+                <div>
+                  <p className="text-gray-700 font-medium text-lg">
+                    Click to upload PDF
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Bank certificate or statement
+                  </p>
+                </div>
+              </div>
+
+              {isScanning && (
+                <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-20 backdrop-blur-[2px]">
+                  <Loader2
+                    className="animate-spin text-brand-blue mb-2"
+                    size={32}
+                  />
+                  <span className="text-sm font-semibold text-brand-blue animate-pulse">
+                    Scanning document...
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 py-2 border rounded"
-              >
-                Atrás
-              </button>
-              <button
-                onClick={handleConfirmUpload}
-                disabled={isUploading}
-                className="flex-1 py-2 bg-primary-600 text-white rounded flex justify-center"
-              >
-                {isUploading ? <Loader2 className="animate-spin" /> : "Subir"}
-              </button>
+          )}
+
+          {/* STEP 2: Confirm */}
+          {step === 2 && (
+            <div className="space-y-6 animate-in-delayed">
+              <div className="bg-green-50 p-4 rounded-lg flex items-start gap-3 border border-green-100">
+                <FileText className="text-green-600 mt-1" size={20} />
+                <div>
+                  <p className="text-sm font-semibold text-green-800">
+                    File Ready
+                  </p>
+                  <p className="text-xs text-green-600 break-all">
+                    {file?.name}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Detected Account Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-shadow font-mono text-lg"
+                    placeholder="Enter account number"
+                  />
+                  {accountNumber && (
+                    <div className="absolute right-3 top-3.5 text-green-500">
+                      <Check size={18} />
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Please verify that the number matches your document exactly.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setStep(1)}
+                  className="flex-1 py-3 px-4 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  disabled={isUploading}
+                  className="flex-1 py-3 px-4 bg-brand-blue text-white font-bold rounded-lg hover:bg-blue-800 transition-all shadow-md hover:shadow-lg flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={18} />{" "}
+                      Uploading...
+                    </>
+                  ) : (
+                    "Confirm & Upload"
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
