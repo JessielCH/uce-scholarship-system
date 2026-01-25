@@ -8,7 +8,7 @@ import { supabase } from "../services/supabaseClient";
 const Login = () => {
   const navigate = useNavigate();
   const [authError, setAuthError] = useState(null);
-  const [isSignUp, setIsSignUp] = useState(false); // Alternar entre Login/Registro
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const formik = useFormik({
     initialValues: {
@@ -17,15 +17,12 @@ const Login = () => {
     },
     validationSchema: Yup.object({
       email: Yup.string()
-        .email("Correo inválido")
-        .matches(
-          /@uce\.edu\.ec$/,
-          "Debe ser un correo institucional @uce.edu.ec",
-        )
-        .required("Requerido"),
+        .email("Invalid email address")
+        .matches(/@uce\.edu\.ec$/, "Must be an institutional email @uce.edu.ec")
+        .required("Required"),
       password: Yup.string()
-        .min(6, "La contraseña debe tener al menos 6 caracteres")
-        .required("Requerido"),
+        .min(6, "Password must be at least 6 characters")
+        .required("Required"),
     }),
     onSubmit: async (values) => {
       setAuthError(null);
@@ -34,13 +31,13 @@ const Login = () => {
       try {
         let result;
         if (isSignUp) {
-          // Intento de Registro (El trigger en BD validará si está en la lista blanca)
+          // Sign Up attempt
           result = await supabase.auth.signUp({
             email,
             password,
           });
         } else {
-          // Intento de Login
+          // Sign In attempt
           result = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -49,10 +46,9 @@ const Login = () => {
 
         if (result.error) throw result.error;
 
-        // --- LÓGICA DE REDIRECCIÓN INTELIGENTE ---
+        // --- INTELLIGENT REDIRECT LOGIC ---
         if (result.data.user) {
-          // 1. Consultar el rol del usuario recién logueado
-          // (Ahora posible gracias al arreglo de políticas RLS que hicimos)
+          // 1. Check user role
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("role")
@@ -60,38 +56,34 @@ const Login = () => {
             .single();
 
           if (profileError) {
-            console.error("Error obteniendo perfil:", profileError);
-            // Si falla la lectura del perfil, por seguridad enviamos al dashboard de estudiante
+            console.error("Error fetching profile:", profileError);
             navigate("/dashboard");
             return;
           }
 
-          // 2. Semáforo de Rutas
+          // 2. Role-based Routing
           if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
-            console.log("Usuario es Staff/Admin. Redirigiendo a /admin");
             navigate("/admin");
           } else {
-            console.log("Usuario es Estudiante. Redirigiendo a /dashboard");
             navigate("/dashboard");
           }
         } else if (isSignUp && !result.data.session) {
-          // Caso raro: Si Supabase pide confirmación de correo
           setAuthError(
-            "Cuenta creada. Por favor verifica tu correo si es necesario.",
+            "Account created. Please verify your email if required.",
           );
         }
       } catch (error) {
-        // Manejo de errores amigable
+        // Friendly Error Handling
         if (
           error.message.includes("Access Denied") ||
           error.message.includes("Acceso Denegado")
         ) {
           setAuthError(
-            "Error: Este correo no figura en la nómina oficial de becarios.",
+            "Error: This email is not on the official scholarship list.",
           );
         } else if (error.message.includes("Invalid login credentials")) {
           setAuthError(
-            "Credenciales incorrectas. Verifica tu correo y contraseña.",
+            "Invalid credentials. Please check your email and password.",
           );
         } else {
           setAuthError(error.message);
@@ -100,29 +92,71 @@ const Login = () => {
     },
   });
 
+  const handleGoogleLogin = async () => {
+    // Placeholder for Google Auth logic if implemented later
+    alert("Google Sign-In integration would happen here.");
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-primary-900">
-          Sistema de Becas UCE
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {isSignUp ? "Activar cuenta de estudiante" : "Ingresar al sistema"}
-        </p>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in font-sans">
+      {/* Title Section matching PDF */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
+        <h1 className="text-4xl font-extrabold text-brand-blue tracking-tight">
+          Scholarship
+        </h1>
+        <h2 className="text-3xl font-bold text-brand-blue mt-1">Management</h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-primary-600">
-          <form className="space-y-6" onSubmit={formik.handleSubmit}>
-            {/* Campo Email */}
+        <div className="bg-white py-10 px-8 shadow-xl rounded-2xl border border-gray-100">
+          {/* Google Button (Mockup based on PDF) */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full flex justify-center items-center gap-3 px-4 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all mb-6"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            Sign in with Google
+          </button>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-400 font-medium">
+                OR
+              </span>
+            </div>
+          </div>
+
+          <form className="space-y-5" onSubmit={formik.handleSubmit}>
+            {/* Email Field */}
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-semibold text-gray-700 mb-1"
               >
-                Correo Institucional
+                Institutional Email
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
@@ -130,30 +164,38 @@ const Login = () => {
                   id="email"
                   type="email"
                   {...formik.getFieldProps("email")}
-                  className={`block w-full pl-10 sm:text-sm border-gray-300 rounded-md focus:ring-primary-600 focus:border-primary-600 p-2 border ${
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm placeholder-gray-400 transition-shadow ${
                     formik.touched.email && formik.errors.email
-                      ? "border-red-500"
-                      : ""
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-300"
                   }`}
-                  placeholder="estudiante@uce.edu.ec"
+                  placeholder="student@uce.edu.ec"
                 />
               </div>
               {formik.touched.email && formik.errors.email && (
-                <p className="mt-2 text-sm text-red-600">
+                <p className="mt-1 text-xs text-red-600 font-medium">
                   {formik.errors.email}
                 </p>
               )}
             </div>
 
-            {/* Campo Password */}
+            {/* Password Field */}
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Contraseña
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="flex justify-between items-center mb-1">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-semibold text-gray-700"
+                >
+                  Password
+                </label>
+                <a
+                  href="#"
+                  className="text-xs font-medium text-brand-blue hover:text-blue-800"
+                >
+                  Forgot password?
+                </a>
+              </div>
+              <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
@@ -161,23 +203,24 @@ const Login = () => {
                   id="password"
                   type="password"
                   {...formik.getFieldProps("password")}
-                  className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md focus:ring-primary-600 focus:border-primary-600 p-2 border"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm placeholder-gray-400 transition-shadow"
+                  placeholder="Enter your password"
                 />
               </div>
               {formik.touched.password && formik.errors.password && (
-                <p className="mt-2 text-sm text-red-600">
+                <p className="mt-1 text-xs text-red-600 font-medium">
                   {formik.errors.password}
                 </p>
               )}
             </div>
 
-            {/* Feedback de Error General */}
+            {/* Error Feedback */}
             {authError && (
-              <div className="rounded-md bg-red-50 p-4">
+              <div className="rounded-lg bg-red-50 p-4 border border-red-100">
                 <div className="flex">
                   <div className="flex-shrink-0">
                     <AlertCircle
-                      className="h-5 w-5 text-red-400"
+                      className="h-5 w-5 text-red-500"
                       aria-hidden="true"
                     />
                   </div>
@@ -190,46 +233,50 @@ const Login = () => {
               </div>
             )}
 
-            <div>
-              <button
-                type="submit"
-                disabled={formik.isSubmitting}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600 disabled:opacity-50 transition-colors"
-              >
-                {formik.isSubmitting ? (
-                  <Loader2 className="animate-spin h-5 w-5" />
-                ) : isSignUp ? (
-                  "Activar Cuenta"
-                ) : (
-                  "Iniciar Sesión"
-                )}
-              </button>
-            </div>
+            {/* Submit Button (RED as per PDF) */}
+            <button
+              type="submit"
+              disabled={formik.isSubmitting}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-brand-red hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 disabled:opacity-70 transition-all transform active:scale-95"
+            >
+              {formik.isSubmitting ? (
+                <Loader2 className="animate-spin h-5 w-5" />
+              ) : isSignUp ? (
+                "Activate Account"
+              ) : (
+                "Log In"
+              )}
+            </button>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  {isSignUp ? "¿Ya tienes cuenta?" : "¿Eres nuevo becario?"}
-                </span>
-              </div>
-            </div>
+          {/* Toggle Sign Up / Sign In */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500 mb-3">
+              {isSignUp
+                ? "Already have an account?"
+                : "New scholarship recipient?"}
+            </p>
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setAuthError(null);
+              }}
+              className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {isSignUp ? "Go to Login" : "Activate via Email"}
+            </button>
+          </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              <button
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setAuthError(null);
-                }}
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors"
-              >
-                {isSignUp ? "Ir a Iniciar Sesión" : "Activar vía Correo"}
-              </button>
-            </div>
+          <div className="mt-6 text-center flex justify-between text-xs text-gray-400">
+            <a href="#" className="hover:underline">
+              Privacy Policy
+            </a>
+            <a href="#" className="hover:underline">
+              Terms of Service
+            </a>
+            <a href="#" className="hover:underline">
+              Help
+            </a>
           </div>
         </div>
       </div>
