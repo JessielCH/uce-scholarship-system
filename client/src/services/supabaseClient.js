@@ -1,11 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Usamos import.meta.env para Vite
+//import.meta.env for Vite
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Faltan las variables de entorno VITE_SUPABASE_ en .env");
+  throw new Error("VITE_SUPABASE_ environment variables missing in .env file");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});

@@ -66,9 +66,62 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
+    // 3. Refrescar sesión cuando la ventana gana foco (para evitar sesiones obsoletas)
+    const handleWindowFocus = async () => {
+      if (mounted && session) {
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.error("Error refreshing session:", error);
+            // Si falla, limpiar sesión
+            setSession(null);
+            setUser(null);
+          } else if (data.session) {
+            setSession(data.session);
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", data.session.user.id)
+              .maybeSingle();
+            setUser({ ...data.session.user, ...profile });
+          }
+        } catch (err) {
+          console.error("Session refresh error:", err);
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+
+    // 4. Intervalo para refrescar sesión cada 2 minutos (120000 ms) si hay sesión activa
+    const sessionRefreshInterval = setInterval(async () => {
+      if (mounted && session) {
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.error("Auto refresh error:", error);
+            setSession(null);
+            setUser(null);
+          } else if (data.session) {
+            setSession(data.session);
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", data.session.user.id)
+              .maybeSingle();
+            setUser({ ...data.session.user, ...profile });
+          }
+        } catch (err) {
+          console.error("Auto refresh error:", err);
+        }
+      }
+    }, 120000); // 2 minutos
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.removeEventListener("focus", handleWindowFocus);
+      clearInterval(sessionRefreshInterval);
     };
   }, []);
 
