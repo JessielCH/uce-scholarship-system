@@ -1,91 +1,107 @@
 import jsPDF from "jspdf";
 
 /**
- * Genera el PDF del Contrato de Beca.
- * @param {Object} student - Datos del estudiante
- * @param {Object} scholarship - Datos de la beca y carrera
- * @param {Object} period - Datos del periodo académico
- * @returns {Blob} - El archivo PDF generado
+ * Generates the Scholarship Contract PDF.
+ * @param {Object} student - Student data
+ * @param {Object} scholarship - Scholarship and career data
+ * @param {Object} period - Academic period data
+ * @returns {Blob} - The generated PDF file as a Blob
  */
 export const generateContractPDF = (student, scholarship, period) => {
   const doc = new jsPDF();
   const margin = 20;
   let cursorY = 20;
 
-  // --- HEADER ---
+  // --- HEADER (Styled with Brand Blue) ---
+  doc.setTextColor(15, 76, 129); // #0F4C81 (Visily Brand Blue)
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("UNIVERSIDAD CENTRAL DEL ECUADOR", 105, cursorY, {
+  doc.text("CENTRAL UNIVERSITY OF ECUADOR", 105, cursorY, {
     align: "center",
   });
   cursorY += 10;
 
   doc.setFontSize(12);
-  doc.text("CONTRATO DE ADJUDICACIÓN DE BECA", 105, cursorY, {
+  doc.text("SCHOLARSHIP ADJUDICATION CONTRACT", 105, cursorY, {
     align: "center",
   });
   cursorY += 20;
 
-  // --- CUERPO ---
+  // --- BODY ---
+  doc.setTextColor(0, 0, 0); // Reset to Black
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
 
-  const today = new Date().toLocaleDateString("es-EC", {
+  const today = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
+  // Contract Text in English
   const text = `
-    En la ciudad de Quito, a los ${today}, comparecen por una parte la Universidad Central del Ecuador, y por otra parte el/la estudiante ${student.first_name} ${student.last_name}, portador de la cédula de identidad Nro. ${student.national_id}.
+    In the city of Quito, on ${today}, appearing on one part the Central University of Ecuador, and on the other part the student ${student.first_name} ${student.last_name}, holder of National ID No. ${student.national_id}.
 
-    CLÁUSULA PRIMERA: ANTECEDENTES
-    El estudiante se encuentra matriculado en la carrera de ${scholarship.careers?.name || "su carrera"}, en el ${scholarship.semester} semestre, con un promedio de ${scholarship.average_grade}, cumpliendo con los requisitos académicos para la beca del periodo ${period?.name || "actual"}.
+    CLAUSE ONE: BACKGROUND
+    The student is currently enrolled in the ${scholarship.careers?.name || "assigned"} career, in the ${scholarship.semester || "current"} semester, maintaining a grade point average of ${scholarship.average_grade}, thereby meeting the academic requirements for the scholarship of the ${period?.name || "current"} period.
 
-    CLÁUSULA SEGUNDA: OBJETO
-    La Universidad adjudica la Beca de Excelencia Académica, consistente en un apoyo económico que será depositado en la cuenta bancaria Nro. ${scholarship.bank_account_number || "______________"} registrada por el beneficiario.
+    CLAUSE TWO: PURPOSE
+    The University adjudicates the Academic Excellence Scholarship, consisting of financial support that will be deposited into the bank account No. ${scholarship.bank_account_number || "____________________"} registered by the beneficiary.
 
-    CLÁUSULA TERCERA: COMPROMISO
-    El becario se compromete a mantener su rendimiento académico y destinar los fondos a fines educativos.
+    CLAUSE THREE: COMMITMENT
+    The scholar commits to maintaining their academic performance and utilizing the funds strictly for educational purposes.
 
-    Para constancia, firman las partes.
+    In witness whereof, the parties sign below.
   `;
 
-  // Función para justificar texto manualmente o usando splitTextToSize
+  // Justify text logic
   const splitText = doc.splitTextToSize(text, 170);
   doc.text(splitText, margin, cursorY);
 
-  cursorY += 80;
+  cursorY += 90;
 
-  // --- FIRMAS ---
-  doc.line(margin, cursorY, 80, cursorY); // Línea Izq
-  doc.line(130, cursorY, 190, cursorY); // Línea Der
+  // --- SIGNATURES ---
+  doc.setLineWidth(0.5);
+  doc.setDrawColor(0, 0, 0);
+
+  // Left Signature (Student)
+  doc.line(margin, cursorY, 80, cursorY);
+
+  // Right Signature (Admin)
+  doc.line(130, cursorY, 190, cursorY);
 
   doc.setFontSize(10);
-  doc.text("EL BECARIO", 50, cursorY + 5, { align: "center" });
+  doc.setFont("helvetica", "bold");
+
+  // Student Details
+  doc.text("THE SCHOLAR", 50, cursorY + 5, { align: "center" });
+  doc.setFont("helvetica", "normal");
   doc.text(`${student.first_name} ${student.last_name}`, 50, cursorY + 10, {
     align: "center",
   });
-  doc.text(`C.I: ${student.national_id}`, 50, cursorY + 15, {
+  doc.text(`ID: ${student.national_id}`, 50, cursorY + 15, {
     align: "center",
   });
 
-  doc.text("BIENESTAR ESTUDIANTIL", 160, cursorY + 5, { align: "center" });
-  doc.text("Director(a)", 160, cursorY + 10, { align: "center" });
+  // Admin Details
+  doc.setFont("helvetica", "bold");
+  doc.text("STUDENT WELFARE", 160, cursorY + 5, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.text("Director", 160, cursorY + 10, { align: "center" });
 
-  // Retornar como Blob para descarga o subida
+  // Return as Blob for upload or download
   return doc.output("blob");
 };
 
 /**
- * Función auxiliar para descargar el PDF directamente en el navegador
+ * Helper function to download the PDF directly in the browser
  */
 export const downloadContract = (student, scholarship, period) => {
   const blob = generateContractPDF(student, scholarship, period);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `Contrato_Beca_${student.national_id}.pdf`;
+  link.download = `Contract_${student.national_id}.pdf`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
