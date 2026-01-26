@@ -11,6 +11,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 import ScholarsList from "./pages/admin/ScholarsList";
 import StaffSettings from "./pages/admin/StaffSettings";
 import IngestData from "./pages/admin/IngestData";
+import AuditLogs from "./pages/admin/AuditLogs";
 import { RoleRoute } from "./components/layout/RoleRoute";
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
               {/* ADMIN Only Routes */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="settings" element={<StaffSettings />} />
+                <Route path="logs" element={<AuditLogs />} />
               </Route>
             </Route>
           </Route>

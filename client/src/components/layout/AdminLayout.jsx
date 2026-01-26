@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  ShieldAlert,
   Upload,
 } from "lucide-react";
 import clsx from "clsx";
@@ -29,7 +30,7 @@ const AdminLayout = () => {
     { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
     { label: "Scholars", icon: Users, path: "/admin/scholars" },
     { label: "Data Ingestion", icon: Upload, path: "/admin/ingest" },
-    { label: "Audit Logs", icon: FileText, path: "/admin/audit" },
+    { label: "Audit Logs", icon: ShieldAlert, path: "/admin/logs" },
   ];
 
   if (user?.role === "ADMIN") {
