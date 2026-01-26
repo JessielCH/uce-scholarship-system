@@ -106,6 +106,7 @@ const ScholarsList = () => {
           target_entity: "scholarship_selections",
           target_id: id,
           details: { reason, generated_receipt: newStatus === "PAID" },
+          performed_by: user.id,
         });
 
         // 6. Send Email Notification
