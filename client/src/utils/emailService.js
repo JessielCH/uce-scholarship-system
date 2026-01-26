@@ -1,6 +1,5 @@
 import emailjs from "@emailjs/browser";
 
-// Accedemos a las variables de entorno de Vite
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
@@ -11,10 +10,10 @@ export const sendNotification = async (
   newStatus,
   notes = "",
 ) => {
-  // Validación de seguridad: Verificar que las keys existan
+  // Validation environment variables
   if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
     console.error(
-      "❌ Faltan las variables de entorno de EmailJS. Revisa tu archivo .env",
+      "❌ EmailJS environment variables are missing. Check your .env file",
     );
     return false;
   }
@@ -23,23 +22,23 @@ export const sendNotification = async (
     const templateParams = {
       to_name: toName,
       to_email: toEmail,
-      status: newStatus, // Asegúrate de que tu template en EmailJS use {{status}}
-      notes: notes, // Asegúrate de que tu template use {{notes}}
+      status: newStatus, // Make sure your EmailJS template uses {{status}}
+      notes: notes, // Make sure your template uses {{notes}}
       date: new Date().toLocaleDateString(),
     };
 
     console.log(
-      `📧 Enviando correo a ${toEmail} usando servicio: ${SERVICE_ID}...`,
+      `📧 Sending mail to ${toEmail} using service: ${SERVICE_ID}...`,
     );
 
-    // Ejecución real
+    // Actual execution
     await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
 
-    console.log("✅ Correo enviado exitosamente via EmailJS");
+    console.log("✅ Email sent successfully via EmailJS");
     return true;
   } catch (error) {
-    console.error("❌ Error enviando correo:", error);
-    // No lanzamos error para no romper el flujo de la UI, solo logueamos
+    console.error("❌ Error sending email:", error);
+    // We don't throw an error so as not to break the UI flow, we just log
     return false;
   }
 };
