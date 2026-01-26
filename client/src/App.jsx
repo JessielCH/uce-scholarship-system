@@ -11,7 +11,7 @@ import Login from "./pages/Login";
 // Student Pages
 import Dashboard from "./pages/student/Dashboard";
 
-// Guest Pages (NUEVO: Portal de Transparencia)
+// Guest Pages (Portal de Transparencia)
 import GuestLayout from "./components/layout/GuestLayout";
 import GuestDashboard from "./pages/guest/GuestDashboard";
 
@@ -19,7 +19,7 @@ import GuestDashboard from "./pages/guest/GuestDashboard";
 import AdminLayout from "./components/layout/AdminLayout";
 
 // Admin/Staff Pages
-import StaffDashboard from "./pages/admin/StaffDashboard"; // Dashboard Operativo
+import DashboardHome from "./components/admin/DashboardHome"; // <--- EL SWITCH INTELIGENTE
 import ScholarsList from "./pages/admin/ScholarsList"; // Gestión Becarios
 import IngestData from "./pages/admin/IngestData"; // Carga Excel
 import StaffSettings from "./pages/admin/StaffSettings"; // Gestión Usuarios
@@ -36,12 +36,11 @@ function App() {
           {/* 2. Rutas Protegidas (Estudiantes) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            {/* Redirección por defecto a dashboard si entran a raíz (se puede mejorar luego) */}
+            {/* Redirección por defecto a dashboard si entran a raíz */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
-          {/* 3. Rutas de INVITADOS (Portal de Transparencia) - NUEVO */}
-          {/* Accesible para cualquier usuario autenticado que quiera ver datos públicos */}
+          {/* 3. Rutas de INVITADOS (Portal de Transparencia) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/guest" element={<GuestLayout />}>
               <Route index element={<GuestDashboard />} />
@@ -51,8 +50,10 @@ function App() {
           {/* 4. Rutas de STAFF y ADMIN */}
           <Route element={<RoleRoute allowedRoles={["ADMIN", "STAFF"]} />}>
             <Route path="/admin" element={<AdminLayout />}>
-              {/* Dashboard Principal (Estadísticas) */}
-              <Route index element={<StaffDashboard />} />
+              {/* --- CAMBIO CLAVE AQUÍ --- */}
+              {/* Usamos DashboardHome como index. Este componente decide internamente */}
+              {/* si mostrar AdminDashboard o StaffDashboard según el rol */}
+              <Route index element={<DashboardHome />} />
 
               {/* Operaciones */}
               <Route path="scholars" element={<ScholarsList />} />
