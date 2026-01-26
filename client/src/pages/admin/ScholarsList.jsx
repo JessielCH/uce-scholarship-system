@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Download,
 } from "lucide-react";
+import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
 const fetchScholars = async () => {
   const { data, error } = await supabase
@@ -221,9 +222,57 @@ const ScholarsList = () => {
 
   if (isLoading)
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="animate-spin text-brand-blue h-8 w-8" />
-        <span className="ml-2 text-gray-500">Loading scholars data...</span>
+      <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
+        {/* Header Skeleton */}
+        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <SkeletonLoader className="h-6 w-64" />
+          <SkeletonLoader className="h-6 w-20" />
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <SkeletonLoader className="h-4 w-16" />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <SkeletonLoader className="h-4 w-24" />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <SkeletonLoader className="h-4 w-20" />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <SkeletonLoader className="h-4 w-12" />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <SkeletonLoader className="h-4 w-16" />
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <SkeletonLoader className="h-4 w-32" />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <SkeletonLoader className="h-4 w-24" />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <SkeletonLoader className="h-4 w-20" />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <SkeletonLoader className="h-6 w-16 rounded-full" />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <SkeletonLoader className="h-8 w-20" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
 
