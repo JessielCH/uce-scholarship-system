@@ -1,92 +1,120 @@
-import jsPDF from 'jspdf';
+import jsPDF from "jspdf";
 
 /**
- * Genera el PDF del Comprobante de Pago.
- * @param {Object} student - Datos del estudiante
- * @param {Object} scholarship - Datos de la beca (monto, cuenta, etc)
- * @returns {Blob} - El archivo PDF listo para subir
+ * Generates the Payment Receipt PDF.
+ * @param {Object} student - Student data
+ * @param {Object} scholarship - Scholarship data (amount, account, etc.)
+ * @returns {Blob} - The PDF file ready for upload
  */
 export const generateReceiptPDF = (student, scholarship) => {
   const doc = new jsPDF();
 
-  // Colores corporativos (Gris y Azul UCE)
-  const primaryColor = [0, 56, 118];
+  // Corporate Colors (Visily Brand Blue: #0F4C81)
+  // Converted to RGB: 15, 76, 129
+  const primaryColor = [15, 76, 129];
 
   // --- HEADER ---
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, 210, 40, 'F'); // Barra superior azul
+  doc.rect(0, 0, 210, 40, "F"); // Top Blue Bar
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text("COMPROBANTE DE PAGO", 105, 20, { align: "center" });
+  doc.text("PAYMENT RECEIPT", 105, 20, { align: "center" });
   doc.setFontSize(10);
-  doc.text("Sistema de Becas - Universidad Central del Ecuador", 105, 30, { align: "center" });
+  doc.text("Scholarship System - Central University of Ecuador", 105, 30, {
+    align: "center",
+  });
 
-  // --- INFO TRANSACCIÓN ---
+  // --- TRANSACTION INFO ---
   doc.setTextColor(0, 0, 0);
   let cursorY = 60;
   const margin = 20;
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, margin, cursorY);
 
-  // Generar un ID de transacción ficticio basado en el ID de la beca
-  const txId = `TX-${new Date().getFullYear()}-${scholarship.id.split('-')[0].toUpperCase()}`;
-  doc.text(`Nro. Transacción: ${txId}`, 130, cursorY);
+  const today = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  doc.text(`Issue Date: ${today}`, margin, cursorY);
+
+  // Generate a fictitious Transaction ID based on Scholarship ID
+  const txId = `TX-${new Date().getFullYear()}-${(scholarship.id || "GEN").split("-")[0].toUpperCase()}`;
+  doc.text(`Transaction ID: ${txId}`, 130, cursorY);
 
   cursorY += 15;
-  doc.line(margin, cursorY, 190, cursorY); // Línea separadora
+  doc.line(margin, cursorY, 190, cursorY); // Separator Line
   cursorY += 15;
 
-  // --- DETALLES DEL BENEFICIARIO ---
+  // --- BENEFICIARY DETAILS ---
   doc.setFontSize(14);
-  doc.text("DATOS DEL BENEFICIARIO", margin, cursorY);
+  doc.text("BENEFICIARY DETAILS", margin, cursorY);
   cursorY += 10;
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(`Nombre: ${student.first_name} ${student.last_name}`, margin, cursorY);
+  doc.text(`Name: ${student.first_name} ${student.last_name}`, margin, cursorY);
   cursorY += 8;
-  doc.text(`Cédula: ${student.national_id}`, margin, cursorY);
+  doc.text(`National ID: ${student.national_id}`, margin, cursorY);
   cursorY += 8;
-  doc.text(`Correo: ${student.university_email}`, margin, cursorY);
+  doc.text(`Email: ${student.university_email}`, margin, cursorY);
   cursorY += 8;
-  doc.text(`Carrera: ${scholarship.careers?.name || 'N/A'}`, margin, cursorY);
+  doc.text(`Career: ${scholarship.careers?.name || "N/A"}`, margin, cursorY);
 
   cursorY += 15;
 
-  // --- DETALLES DEL PAGO ---
+  // --- PAYMENT DETAILS ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("DETALLES DE LA TRANSFERENCIA", margin, cursorY);
+  doc.text("TRANSFER DETAILS", margin, cursorY);
   cursorY += 10;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(`Institución Bancaria: BANCO PICHINCHA (Según certificado)`, margin, cursorY);
+  doc.text(
+    `Bank Institution: BANCO PICHINCHA (Per certificate)`,
+    margin,
+    cursorY,
+  );
   cursorY += 8;
-  doc.text(`Cuenta Destino: ${scholarship.bank_account_number}`, margin, cursorY);
+  doc.text(
+    `Destination Account: ${scholarship.bank_account_number}`,
+    margin,
+    cursorY,
+  );
   cursorY += 8;
-  // Asumimos un monto fijo si no está en BD, o lo pasamos. Por ahora pondremos un placeholder
-  doc.text(`Concepto: Beca de Excelencia Académica - Periodo ${scholarship.academic_periods?.name}`, margin, cursorY);
+  // Standard amount placeholder
+  doc.text(
+    `Description: Academic Excellence Scholarship - Period ${scholarship.academic_periods?.name || "Current"}`,
+    margin,
+    cursorY,
+  );
 
   cursorY += 20;
 
   // --- TOTAL ---
-  doc.setFillColor(240, 240, 240); // Fondo gris claro
-  doc.rect(margin, cursorY, 170, 20, 'F');
+  doc.setFillColor(245, 247, 250); // Light Gray Background (Matches App BG)
+  doc.rect(margin, cursorY, 170, 20, "F");
 
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("MONTO TRANSFERIDO:", margin + 5, cursorY + 13);
-  doc.text("$ 400.00 USD", 130, cursorY + 13); // Monto ejemplo
+  doc.setTextColor(15, 76, 129); // Brand Blue Text
+  doc.text("AMOUNT TRANSFERRED:", margin + 5, cursorY + 13);
+  doc.text("$ 400.00 USD", 130, cursorY + 13);
 
   // --- FOOTER ---
   doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text("Este documento es un comprobante electrónico generado automáticamente.", 105, 280, { align: "center" });
+  doc.setTextColor(150, 150, 150); // Gray text
+  doc.text(
+    "This document is an automatically generated electronic receipt.",
+    105,
+    280,
+    { align: "center" },
+  );
 
-  return doc.output('blob');
+  return doc.output("blob");
 };
