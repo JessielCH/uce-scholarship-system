@@ -2,67 +2,63 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import { RoleRoute } from "./components/layout/RoleRoute";
 import "./index.css";
 
-// Page Imports
+// --- Page Imports ---
 import Login from "./pages/Login";
+
+// Student Pages
 import Dashboard from "./pages/student/Dashboard";
+
+// Admin/Staff Layout
 import AdminLayout from "./components/layout/AdminLayout";
-import ScholarsList from "./pages/admin/ScholarsList";
-import StaffSettings from "./pages/admin/StaffSettings";
-import IngestData from "./pages/admin/IngestData";
-import AuditLogs from "./pages/admin/AuditLogs";
-import { RoleRoute } from "./components/layout/RoleRoute";
+
+// Admin/Staff Pages
+import StaffDashboard from "./pages/admin/StaffDashboard"; // Dashboard de Estadísticas (Nuevo)
+import ScholarsList from "./pages/admin/ScholarsList"; // Lista de Becarios y Pagos
+import IngestData from "./pages/admin/IngestData"; // Carga de Excel
+import StaffSettings from "./pages/admin/StaffSettings"; // Gestión de Usuarios (Crear Staff)
+import AuditLogs from "./pages/admin/AuditLogs"; // Auditoría de Seguridad
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public Routes */}
+          {/* 1. Rutas Públicas */}
           <Route path="/login" element={<Login />} />
 
-          {/* Protected Routes (Students & General Users) */}
+          {/* 2. Rutas Protegidas (Estudiantes y General) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            {/* Redirección por defecto a dashboard si entran a raíz */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
-          {/* ADMIN / STAFF Routes */}
+          {/* 3. Rutas de STAFF y ADMIN */}
           <Route element={<RoleRoute allowedRoles={["ADMIN", "STAFF"]} />}>
             <Route path="/admin" element={<AdminLayout />}>
-              <Route
-                index
-                element={
-                  <div className="p-4">
-                    <h1 className="text-2xl font-bold text-brand-blue">
-                      Dashboard Overview (Statistics)
-                    </h1>
-                  </div>
-                }
-              />
-              <Route path="scholars" element={<ScholarsList />} />
-              <Route path="ingest" element={<IngestData />} />
-              <Route
-                path="audit"
-                element={
-                  <div className="p-4">
-                    <h1 className="text-2xl font-bold text-gray-700">
-                      Audit Logs (Phase 6)
-                    </h1>
-                  </div>
-                }
-              />
+              {/* Landing Page: Dashboard Operativo (Estadísticas) */}
+              <Route index element={<StaffDashboard />} />
 
-              {/* ADMIN Only Routes */}
+              {/* Gestión de Becarios (Aprobar, Pagar, Contratos) */}
+              <Route path="scholars" element={<ScholarsList />} />
+
+              {/* Carga Masiva de Datos */}
+              <Route path="ingest" element={<IngestData />} />
+
+              {/* --- Rutas Exclusivas de ADMIN --- */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
+                {/* Gestión de Usuarios del Staff */}
                 <Route path="settings" element={<StaffSettings />} />
+                {/* Logs de Auditoría */}
                 <Route path="logs" element={<AuditLogs />} />
               </Route>
             </Route>
           </Route>
 
-          {/* Fallback 404 */}
+          {/* 4. Fallback 404 (Cualquier ruta desconocida va al login) */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>
