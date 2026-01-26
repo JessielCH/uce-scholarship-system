@@ -1,10 +1,17 @@
 import React from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { UserPlus, Save, Loader2 } from "lucide-react";
+import {
+  UserPlus,
+  Save,
+  Loader2,
+  ShieldCheck,
+  Mail,
+  Lock,
+  User,
+} from "lucide-react";
 
 const StaffSettings = () => {
-  // Estado para feedback visual
   const [status, setStatus] = React.useState({ type: "", message: "" });
 
   const formik = useFormik({
@@ -15,17 +22,17 @@ const StaffSettings = () => {
       role: "STAFF",
     },
     validationSchema: Yup.object({
-      fullName: Yup.string().required("El nombre es requerido"),
-      email: Yup.string().email("Email inválido").required("Requerido"),
+      fullName: Yup.string().required("Full name is required"),
+      email: Yup.string().email("Invalid email").required("Required"),
       password: Yup.string()
-        .min(6, "Mínimo 6 caracteres")
-        .required("Requerido"),
+        .min(6, "Minimum 6 characters")
+        .required("Required"),
     }),
     onSubmit: async (values, { resetForm }) => {
       setStatus({ type: "", message: "" });
 
       try {
-        // Llamada a NUESTRO Backend Node.js
+        // Keeping local API call as requested
         const response = await fetch(
           "http://localhost:3000/api/admin/create-staff",
           {
@@ -39,12 +46,11 @@ const StaffSettings = () => {
 
         const data = await response.json();
 
-        if (!response.ok)
-          throw new Error(data.error || "Error al crear usuario");
+        if (!response.ok) throw new Error(data.error || "Error creating user");
 
         setStatus({
           type: "success",
-          message: `¡Usuario ${values.email} creado correctamente!`,
+          message: `User ${values.email} created successfully!`,
         });
         resetForm();
       } catch (error) {
@@ -54,108 +60,139 @@ const StaffSettings = () => {
   });
 
   return (
-    <div className="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow">
-      <div className="mb-6 border-b pb-4">
-        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          <UserPlus className="text-primary-600" />
-          Gestión de Personal (Staff)
+    <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-fade-in">
+      <div className="bg-gray-50 px-8 py-6 border-b border-gray-100">
+        <h2 className="text-xl font-bold text-brand-blue flex items-center gap-2">
+          <UserPlus className="text-brand-blue" size={24} />
+          Staff Management
         </h2>
         <p className="text-sm text-gray-500 mt-1">
-          Registra nuevos miembros del equipo administrativo o financiero.
+          Register new members for the administrative or financial team.
         </p>
       </div>
 
-      {status.message && (
-        <div
-          className={`p-4 rounded-md mb-6 ${status.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}
-        >
-          {status.message}
-        </div>
-      )}
+      <div className="p-8">
+        {status.message && (
+          <div
+            className={`p-4 rounded-lg mb-6 border ${
+              status.type === "success"
+                ? "bg-green-50 text-green-700 border-green-200"
+                : "bg-red-50 text-red-700 border-red-200"
+            }`}
+          >
+            {status.message}
+          </div>
+        )}
 
-      <form onSubmit={formik.handleSubmit} className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Nombre Completo
-          </label>
-          <input
-            type="text"
-            {...formik.getFieldProps("fullName")}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-500 focus:border-primary-500"
-            placeholder="Ej. Ing. María Fernanda"
-          />
-          {formik.touched.fullName && formik.errors.fullName && (
-            <div className="text-red-500 text-xs mt-1">
-              {formik.errors.fullName}
+        <form onSubmit={formik.handleSubmit} className="space-y-6">
+          {/* Full Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Full Name
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                {...formik.getFieldProps("fullName")}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm transition-shadow"
+                placeholder="e.g. Maria Anderson"
+              />
             </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Correo Institucional
-            </label>
-            <input
-              type="email"
-              {...formik.getFieldProps("email")}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="staff@uce.edu.ec"
-            />
-            {formik.touched.email && formik.errors.email && (
-              <div className="text-red-500 text-xs mt-1">
-                {formik.errors.email}
-              </div>
+            {formik.touched.fullName && formik.errors.fullName && (
+              <p className="text-red-500 text-xs mt-1 font-medium">
+                {formik.errors.fullName}
+              </p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Contraseña Temporal
-            </label>
-            <input
-              type="text"
-              {...formik.getFieldProps("password")}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="********"
-            />
-            {formik.touched.password && formik.errors.password && (
-              <div className="text-red-500 text-xs mt-1">
-                {formik.errors.password}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Institutional Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="email"
+                  {...formik.getFieldProps("email")}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm transition-shadow"
+                  placeholder="staff@university.edu"
+                />
               </div>
-            )}
+              {formik.touched.email && formik.errors.email && (
+                <p className="text-red-500 text-xs mt-1 font-medium">
+                  {formik.errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Temporary Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  {...formik.getFieldProps("password")}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm transition-shadow"
+                  placeholder="********"
+                />
+              </div>
+              {formik.touched.password && formik.errors.password && (
+                <p className="text-red-500 text-xs mt-1 font-medium">
+                  {formik.errors.password}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Rol Asignado
-          </label>
-          <select
-            {...formik.getFieldProps("role")}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            <option value="STAFF">Staff (Analista de Becas)</option>
-            <option value="ADMIN">Administrador del Sistema</option>
-          </select>
-        </div>
+          {/* Role Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Assigned Role
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <ShieldCheck className="h-5 w-5 text-gray-400" />
+              </div>
+              <select
+                {...formik.getFieldProps("role")}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm bg-white"
+              >
+                <option value="STAFF">Staff (Scholarship Analyst)</option>
+                <option value="ADMIN">System Administrator</option>
+              </select>
+            </div>
+          </div>
 
-        <div className="pt-4">
-          <button
-            type="submit"
-            disabled={formik.isSubmitting}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-900 hover:bg-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            {formik.isSubmitting ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <>
-                <Save size={18} className="mr-2" /> Crear Usuario Staff
-              </>
-            )}
-          </button>
-        </div>
-      </form>
+          {/* Submit Button */}
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={formik.isSubmitting}
+              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-brand-blue hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-70 transition-all"
+            >
+              {formik.isSubmitting ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <>
+                  <Save size={18} className="mr-2" /> Create Staff User
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

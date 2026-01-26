@@ -10,12 +10,13 @@ import {
   XCircle,
   FileText,
   DollarSign,
-  ExternalLink,
   Loader2,
+  Eye,
+  AlertTriangle,
+  Download,
 } from "lucide-react";
 
 const fetchScholars = async () => {
-  // Traemos también los documentos subidos
   const { data, error } = await supabase
     .from("scholarship_selections")
     .select(
@@ -46,98 +47,103 @@ const ScholarsList = () => {
     queryFn: fetchScholars,
   });
 
-  // MUTATION: Actualizar Estado con Lógica de Pago
+  // MUTATION: Update Status with Payment Logic
   const statusMutation = useMutation({
-    mutationFn: async ({ id, newStatus, student, scholarshipData, reason = '' }) => {
+    mutationFn: async ({
+      id,
+      newStatus,
+      student,
+      scholarshipData,
+      reason = "",
+    }) => {
       setProcessingId(id);
 
       try {
-        // CASO ESPECIAL: SI ES PAGO ('PAID'), GENERAMOS EL COMPROBANTE
-        if (newStatus === 'PAID') {
-           console.log("🖨️ Generando comprobante de pago...");
+        // SPECIAL CASE: PAYMENT ('PAID') -> Generate Receipt
+        if (newStatus === "PAID") {
+          console.log("🖨️ Generating payment receipt...");
 
-           // 1. Generar Blob del PDF
-           const pdfBlob = generateReceiptPDF(student, scholarshipData);
-           const fileName = `${Date.now()}_comprobante_pago.pdf`;
-           const filePath = `receipts/${fileName}`; // Carpeta receipts (opcional) o raíz
+          // 1. Generate PDF Blob
+          const pdfBlob = generateReceiptPDF(student, scholarshipData);
+          const fileName = `${Date.now()}_payment_receipt.pdf`;
+          const filePath = `receipts/${fileName}`;
 
-           // 2. Subir a Supabase Storage
-           const { error: uploadError } = await supabase.storage
-             .from('scholarship-docs')
-             .upload(filePath, pdfBlob);
+          // 2. Upload to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("scholarship-docs")
+            .upload(filePath, pdfBlob);
 
-           if (uploadError) throw uploadError;
+          if (uploadError) throw uploadError;
 
-           // 3. Crear Registro en documents
-           const { error: docError } = await supabase.from('documents').insert({
-             selection_id: id,
-             document_type: 'PAYMENT_RECEIPT', // <--- NUEVO TIPO
-             file_path: filePath,
-             version: 1
-           });
+          // 3. Create Document Record
+          const { error: docError } = await supabase.from("documents").insert({
+            selection_id: id,
+            document_type: "PAYMENT_RECEIPT",
+            file_path: filePath,
+            version: 1,
+          });
 
-           if (docError) throw docError;
+          if (docError) throw docError;
         }
 
-        // --- FLUJO NORMAL DE ACTUALIZACIÓN ---
+        // --- NORMAL UPDATE FLOW ---
 
-        // 4. Actualizar estado en scholarship_selections
+        // 4. Update status in scholarship_selections
         const { error: updateError } = await supabase
-          .from('scholarship_selections')
+          .from("scholarship_selections")
           .update({
-              status: newStatus,
-              rejection_reason: reason,
-              payment_date: newStatus === 'PAID' ? new Date() : null
+            status: newStatus,
+            rejection_reason: reason,
+            payment_date: newStatus === "PAID" ? new Date() : null,
           })
-          .eq('id', id);
+          .eq("id", id);
 
         if (updateError) throw updateError;
 
         // 5. Audit Log
-        await supabase.from('audit_logs').insert({
+        await supabase.from("audit_logs").insert({
           action: `CHANGE_STATUS_${newStatus}`,
-          target_entity: 'scholarship_selections',
+          target_entity: "scholarship_selections",
           target_id: id,
-          details: { reason, generated_receipt: newStatus === 'PAID' }
+          details: { reason, generated_receipt: newStatus === "PAID" },
         });
 
-        // 6. Enviar Correo
+        // 6. Send Email Notification
         await sendNotification(
-            `${student.first_name} ${student.last_name}`,
-            student.university_email,
-            newStatus,
-            reason
+          `${student.first_name} ${student.last_name}`,
+          student.university_email,
+          newStatus,
+          reason,
         );
-
       } catch (err) {
-        console.error("Error en proceso:", err);
-        throw err; // Para que useMutation sepa que falló
+        console.error("Process error:", err);
+        throw err;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['scholars']);
+      queryClient.invalidateQueries(["scholars"]);
       setProcessingId(null);
     },
     onError: (err) => {
-        alert("Error: " + err.message);
-        setProcessingId(null);
-    }
+      alert("Error: " + err.message);
+      setProcessingId(null);
+    },
   });
 
-  // MUTATION: Generar Contrato
+  // MUTATION: Generate Contract
   const generateContractMutation = useMutation({
     mutationFn: async ({ selection, student }) => {
       setProcessingId(selection.id);
 
-      // 1. Generar PDF
+      // 1. Generate PDF
       const contractBlob = await generateContractPDF(
         student,
         selection,
         selection.academic_periods,
       );
 
-      // 2. Subir a Storage
-      const fileName = `contrato_${selection.id}_${Date.now()}.pdf`;
+      // 2. Upload to Storage
+      const fileName = `contract_${selection.id}_${Date.now()}.pdf`;
       const filePath = `contracts/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -146,17 +152,17 @@ const ScholarsList = () => {
 
       if (uploadError) throw uploadError;
 
-      // 3. Registrar documento
+      // 3. Register Document
       const { error: docError } = await supabase.from("documents").insert({
         selection_id: selection.id,
-        document_type: "CONTRACT_UNSIGNED", // Cambiado de CONTRACT_GENERATED
+        document_type: "CONTRACT_UNSIGNED",
         file_path: filePath,
         version: 1,
       });
 
       if (docError) throw docError;
 
-      // 4. Actualizar estado
+      // 4. Update Status
       const { error: statusError } = await supabase
         .from("scholarship_selections")
         .update({ status: "CONTRACT_GENERATED" })
@@ -172,7 +178,7 @@ const ScholarsList = () => {
         details: { filename: fileName },
       });
 
-      // 6. Enviar notificación
+      // 6. Send Notification
       await sendNotification(
         `${student.first_name} ${student.last_name}`,
         student.university_email,
@@ -185,105 +191,117 @@ const ScholarsList = () => {
       setProcessingId(null);
     },
     onError: (err) => {
-      alert("Error generando contrato: " + err.message);
+      alert("Error generating contract: " + err.message);
       setProcessingId(null);
     },
   });
 
-  // Función auxiliar para obtener URL del PDF
   const getDocUrl = (docs) => {
     const cert = docs?.find((d) => d.document_type === "BANK_CERT");
     if (!cert) return null;
-    // Obtener URL pública (o firmada si es privado, aquí usamos getPublicUrl por simplicidad en demo)
     const { data } = supabase.storage
       .from("scholarship-docs")
       .getPublicUrl(cert.file_path);
     return data.publicUrl;
   };
 
-  // Función para abrir documentos privados de forma segura
   const handleOpenDocument = async (filePath) => {
     try {
-      // Generar URL firmada válida por 60 segundos
       const { data, error } = await supabase.storage
         .from("scholarship-docs")
         .createSignedUrl(filePath, 60);
 
       if (error) throw error;
-
-      // Abrir en nueva pestaña
       window.open(data.signedUrl, "_blank");
     } catch (error) {
-      alert("Error al abrir documento: " + error.message);
+      alert("Error opening document: " + error.message);
     }
   };
 
   if (isLoading)
-    return <div className="p-10 text-center">Cargando datos...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin text-brand-blue h-8 w-8" />
+        <span className="ml-2 text-gray-500">Loading scholars data...</span>
+      </div>
+    );
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      {/* ... Header de la tabla ... */}
-      <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
-        <h3 className="text-lg leading-6 font-medium text-gray-900">
-          Gestión de Becarios
+    <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <h3 className="text-lg font-bold text-brand-blue">
+          Scholarship Recipients Management
         </h3>
+        <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded border shadow-sm">
+          Total: {scholars?.length || 0}
+        </span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Estudiante
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Student
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Detalles
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Academic Details
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Documentos
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Documents
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Estado
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Status
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Acciones
+              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-100">
             {scholars?.map((item) => (
-              <tr key={item.id}>
+              <tr
+                key={item.id}
+                className="hover:bg-blue-50/30 transition-colors"
+              >
+                {/* Student Column */}
                 <td className="px-6 py-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    {item.students?.first_name} {item.students?.last_name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {item.students?.university_email}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-900">
+                      {item.students?.first_name} {item.students?.last_name}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {item.students?.university_email}
+                    </span>
+                    <span className="text-xs text-gray-400 font-mono mt-0.5">
+                      ID: {item.students?.national_id}
+                    </span>
                   </div>
                 </td>
 
+                {/* Details Column */}
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-700">
+                  <div className="text-sm text-gray-700 font-medium">
                     {item.careers?.name}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Prom: {item.average_grade} | Cond: {item.academic_condition}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Avg: <span className="font-bold">{item.average_grade}</span>{" "}
+                    | {item.academic_condition}
                   </div>
                   {item.bank_account_number && (
-                    <div className="text-xs font-mono bg-green-50 text-green-700 px-2 py-1 rounded mt-1 w-fit">
-                      Cta: {item.bank_account_number}
+                    <div className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded mt-1 inline-block border border-green-100">
+                      Acct: {item.bank_account_number}
                     </div>
                   )}
                 </td>
 
+                {/* Documents Column */}
                 <td className="px-6 py-4">
                   <div className="space-y-2">
-                    {/* Certificado Bancario */}
-                    <div>
-                      <span className="text-xs font-medium text-gray-500">
-                        Bancario:
-                      </span>
+                    {/* Bank Cert */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Bank Cert:</span>
                       {item.documents?.find(
                         (d) => d.document_type === "BANK_CERT",
                       ) ? (
@@ -295,22 +313,18 @@ const ScholarsList = () => {
                               ).file_path,
                             )
                           }
-                          className="ml-2 flex items-center text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium transition-colors"
+                          className="flex items-center text-blue-600 hover:underline"
                         >
-                          <FileText size={14} className="mr-1" /> Ver
+                          <Eye size={12} className="mr-1" /> View
                         </button>
                       ) : (
-                        <span className="ml-2 flex items-center text-xs text-gray-400">
-                          <XCircle size={12} className="mr-1" /> No
-                        </span>
+                        <span className="text-gray-300 italic">Missing</span>
                       )}
                     </div>
 
-                    {/* Contrato Generado */}
-                    <div>
-                      <span className="text-xs font-medium text-gray-500">
-                        Contrato:
-                      </span>
+                    {/* Contract */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Contract:</span>
                       {item.documents?.find(
                         (d) =>
                           d.document_type === "CONTRACT_UNSIGNED" ||
@@ -326,53 +340,57 @@ const ScholarsList = () => {
                               ).file_path,
                             )
                           }
-                          className="ml-2 flex items-center text-green-600 hover:text-green-800 hover:underline text-sm font-medium transition-colors"
+                          className="flex items-center text-purple-600 hover:underline"
                         >
-                          <FileText size={14} className="mr-1" /> Ver
+                          <Eye size={12} className="mr-1" /> View
                         </button>
                       ) : (
-                        <span className="ml-2 flex items-center text-xs text-gray-400">
-                          <XCircle size={12} className="mr-1" /> No
-                        </span>
+                        <span className="text-gray-300 italic">None</span>
                       )}
                     </div>
                   </div>
                 </td>
 
+                {/* Status Column */}
                 <td className="px-6 py-4">
                   <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${
                       item.status?.toUpperCase() === "PAID"
-                        ? "bg-green-100 text-green-800"
+                        ? "bg-green-100 text-green-800 border-green-200"
                         : item.status?.toUpperCase() === "READY_FOR_PAYMENT"
-                          ? "bg-blue-100 text-blue-800"
+                          ? "bg-blue-100 text-blue-800 border-blue-200"
                           : item.status?.toUpperCase() === "CONTRACT_UPLOADED"
-                            ? "bg-purple-100 text-purple-800"
+                            ? "bg-purple-100 text-purple-800 border-purple-200"
                             : item.status?.toUpperCase() ===
                                 "CONTRACT_GENERATED"
-                              ? "bg-cyan-100 text-cyan-800"
+                              ? "bg-cyan-100 text-cyan-800 border-cyan-200"
                               : item.status?.toUpperCase() ===
-                                  "CONTRACT_REJECTED"
-                                ? "bg-red-100 text-red-800"
+                                    "CONTRACT_REJECTED" ||
+                                  item.status?.toUpperCase() ===
+                                    "CHANGES_REQUESTED"
+                                ? "bg-red-100 text-red-800 border-red-200"
                                 : item.status?.toUpperCase() === "APPROVED"
-                                  ? "bg-indigo-100 text-indigo-800"
+                                  ? "bg-indigo-100 text-indigo-800 border-indigo-200"
                                   : item.status?.toUpperCase() ===
                                       "DOCS_UPLOADED"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-gray-100 text-gray-800"
+                                    ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+                                    : "bg-gray-100 text-gray-800 border-gray-200"
                     }`}
                   >
-                    {item.status}
+                    {item.status?.replace(/_/g, " ")}
                   </span>
                 </td>
 
+                {/* Actions Column */}
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {processingId === item.id ? (
-                    <Loader2 className="animate-spin ml-auto text-primary-600" />
+                    <Loader2
+                      className="animate-spin ml-auto text-brand-blue"
+                      size={20}
+                    />
                   ) : (
-                    <div className="flex justify-end gap-2">
-                      {/* ACCIONES PARA ESTADO: DOCS_UPLOADED */}
+                    <div className="flex justify-end items-center gap-2">
+                      {/* ACTION: REVIEW DOCUMENTS */}
                       {item.status?.toUpperCase() === "DOCS_UPLOADED" && (
                         <>
                           <button
@@ -381,11 +399,11 @@ const ScholarsList = () => {
                                 id: item.id,
                                 newStatus: "CHANGES_REQUESTED",
                                 student: item.students,
-                                reason: "Documento ilegible",
+                                reason: "Documento ilegible o incorrecto",
                               })
                             }
-                            className="text-red-600 hover:text-red-900"
-                            title="Rechazar Documento"
+                            className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Reject Documents"
                           >
                             <XCircle size={20} />
                           </button>
@@ -397,15 +415,15 @@ const ScholarsList = () => {
                                 student: item.students,
                               })
                             }
-                            className="text-green-600 hover:text-green-900"
-                            title="Aprobar Beca"
+                            className="p-1 text-green-500 hover:bg-green-50 rounded transition-colors"
+                            title="Approve Documents"
                           >
                             <CheckCircle size={20} />
                           </button>
                         </>
                       )}
 
-                      {/* ACCIONES PARA ESTADO: APPROVED */}
+                      {/* ACTION: GENERATE CONTRACT */}
                       {item.status?.toUpperCase() === "APPROVED" && (
                         <button
                           onClick={() =>
@@ -414,13 +432,13 @@ const ScholarsList = () => {
                               student: item.students,
                             })
                           }
-                          className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                          className="flex items-center gap-1 bg-brand-blue text-white px-3 py-1.5 rounded-md text-xs hover:bg-blue-800 transition-colors shadow-sm"
                         >
-                          <FileText size={16} /> Generar Contrato
+                          <FileText size={14} /> Generate Contract
                         </button>
                       )}
 
-                      {/* ACCIONES PARA ESTADO: CONTRACT_UPLOADED */}
+                      {/* ACTION: VALIDATE CONTRACT */}
                       {item.status?.toUpperCase() === "CONTRACT_UPLOADED" && (
                         <>
                           <button
@@ -429,11 +447,11 @@ const ScholarsList = () => {
                                 id: item.id,
                                 newStatus: "CONTRACT_REJECTED",
                                 student: item.students,
-                                reason: "Contrato inválido o firma ilegible",
+                                reason: "Invalid signature or document",
                               })
                             }
-                            className="text-red-600 hover:text-red-900 mr-2"
-                            title="Rechazar Contrato"
+                            className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Reject Contract"
                           >
                             <XCircle size={20} />
                           </button>
@@ -445,15 +463,15 @@ const ScholarsList = () => {
                                 student: item.students,
                               })
                             }
-                            className="text-green-600 hover:text-green-900"
-                            title="Aprobar Contrato"
+                            className="p-1 text-green-500 hover:bg-green-50 rounded transition-colors"
+                            title="Approve Contract"
                           >
                             <CheckCircle size={20} />
                           </button>
                         </>
                       )}
 
-                      {/* ACCIONES PARA ESTADO: READY_FOR_PAYMENT */}
+                      {/* ACTION: PAY */}
                       {item.status?.toUpperCase() === "READY_FOR_PAYMENT" && (
                         <button
                           onClick={() =>
@@ -461,45 +479,48 @@ const ScholarsList = () => {
                               id: item.id,
                               newStatus: "PAID",
                               student: item.students,
-                              scholarshipData: item // <--- IMPORTANTE: Pasamos todo el objeto para tener datos de carrera, cuenta, etc.
+                              scholarshipData: item,
                             })
                           }
-                          className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                          className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-md text-xs hover:bg-green-700 transition-colors shadow-sm"
                         >
-                          <DollarSign size={16} /> Pagar
+                          <DollarSign size={14} /> Disburse
                         </button>
                       )}
 
+                      {/* ACTION: VIEW RECEIPT */}
                       {item.status?.toUpperCase() === "PAID" && (
-                        <div className="flex flex-col items-end gap-1">
-                            <span className="text-green-600 font-bold text-xs">¡PAGADO!</span>
-
-                            {/* BUSCAMOS EL COMPROBANTE EN LOS DOCUMENTOS */}
-                            {item.documents?.find(d => d.document_type === 'PAYMENT_RECEIPT') && (
-                                <button
-                                    onClick={() => handleOpenDocument(item.documents.find(d => d.document_type === 'PAYMENT_RECEIPT').file_path)}
-                                    className="text-xs text-blue-600 hover:underline flex items-center"
-                                >
-                                    <FileText size={12} className="mr-1"/> Comprobante
-                                </button>
-                            )}
+                        <div className="flex items-center gap-2">
+                          {item.documents?.find(
+                            (d) => d.document_type === "PAYMENT_RECEIPT",
+                          ) && (
+                            <button
+                              onClick={() =>
+                                handleOpenDocument(
+                                  item.documents.find(
+                                    (d) =>
+                                      d.document_type === "PAYMENT_RECEIPT",
+                                  ).file_path,
+                                )
+                              }
+                              className="text-xs text-brand-blue hover:underline flex items-center font-medium"
+                            >
+                              <Download size={12} className="mr-1" /> Receipt
+                            </button>
+                          )}
                         </div>
                       )}
 
-                      {item.status?.toUpperCase() === "CONTRACT_REJECTED" && (
-                        <span className="text-orange-600 text-xs">
-                          Contrato Rechazado - Esperando nuevo upload
-                        </span>
-                      )}
-
+                      {/* FALLBACK STATUS TEXTS */}
                       {item.status?.toUpperCase() === "CONTRACT_GENERATED" && (
-                        <span className="text-cyan-600 text-xs">
-                          Contrato generado - Esperando firma del estudiante
+                        <span className="text-xs text-gray-400 italic">
+                          Waiting for student...
                         </span>
                       )}
 
-                      {/* ACCIONES PARA ESTADO: SELECTED */}
-                      {item.status?.toUpperCase() === "SELECTED" && (
+                      {/* DEV SHORTCUTS (Optional, remove in prod) */}
+                      {(item.status?.toUpperCase() === "SELECTED" ||
+                        item.status?.toUpperCase() === "NOTIFIED") && (
                         <button
                           onClick={() =>
                             statusMutation.mutate({
@@ -508,45 +529,11 @@ const ScholarsList = () => {
                               student: item.students,
                             })
                           }
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Marcar como con documentos subidos (para testing)"
+                          className="p-1 text-gray-400 hover:text-blue-500"
+                          title="Dev: Force Docs Uploaded"
                         >
-                          <CheckCircle size={20} />
+                          <CheckCircle size={16} />
                         </button>
-                      )}
-
-                      {/* ACCIONES PARA ESTADO: NOTIFIED */}
-                      {item.status?.toUpperCase() === "NOTIFIED" && (
-                        <button
-                          onClick={() =>
-                            statusMutation.mutate({
-                              id: item.id,
-                              newStatus: "DOCS_UPLOADED",
-                              student: item.students,
-                            })
-                          }
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Marcar como con documentos subidos"
-                        >
-                          <CheckCircle size={20} />
-                        </button>
-                      )}
-
-                      {/* MOSTRAR STATUS SI NO HAY ACCIONES */}
-                      {![
-                        "DOCS_UPLOADED",
-                        "APPROVED",
-                        "CONTRACT_UPLOADED",
-                        "READY_FOR_PAYMENT",
-                        "PAID",
-                        "CONTRACT_REJECTED",
-                        "CONTRACT_GENERATED",
-                        "SELECTED",
-                        "NOTIFIED",
-                      ].includes(item.status?.toUpperCase()) && (
-                        <span className="text-gray-500 text-xs">
-                          Estado: {item.status || "Sin estado"}
-                        </span>
                       )}
                     </div>
                   )}
