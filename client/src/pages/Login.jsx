@@ -1,14 +1,66 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { AlertCircle, Lock, Mail, Loader2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { session } = useAuth(); // Usamos la sesión del contexto
   const [authError, setAuthError] = useState(null);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [verifying, setVerifying] = useState(false); // Estado local de redirección
+
+  // --- LÓGICA DE REDIRECCIÓN ---
+  useEffect(() => {
+    if (session) {
+      checkUserRoleAndRedirect(session.user);
+    }
+  }, [session, navigate]);
+
+  const checkUserRoleAndRedirect = async (user) => {
+    setVerifying(true);
+    try {
+      console.log("Verificando rol para:", user.email);
+
+      // 1. ¿Es STAFF o ADMIN?
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle(); // <--- IMPORTANTE: No da error si es null
+
+      if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
+        console.log("Rol detectado: Admin/Staff");
+        navigate("/admin", { replace: true });
+        return;
+      }
+
+      // 2. ¿Es ESTUDIANTE OFICIAL?
+      const { data: studentRecord } = await supabase
+        .from("students")
+        .select("id")
+        .eq("university_email", user.email)
+        .maybeSingle();
+
+      if (studentRecord) {
+        console.log("Rol detectado: Estudiante");
+        navigate("/dashboard", { replace: true });
+      } else {
+        // 3. Si no es nada de lo anterior -> INVITADO
+        console.log("Rol detectado: Invitado");
+        navigate("/guest", { replace: true });
+      }
+    } catch (error) {
+      console.error("Error en redirección:", error);
+      // Si falla algo, lo mandamos a invitado por defecto para que no se quede trabado
+      navigate("/guest", { replace: true });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const formik = useFormik({
     initialValues: {
@@ -17,12 +69,12 @@ const Login = () => {
     },
     validationSchema: Yup.object({
       email: Yup.string()
-        .email("Invalid email address")
-        .matches(/@uce\.edu\.ec$/, "Must be an institutional email @uce.edu.ec")
-        .required("Required"),
+        .email("Email inválido")
+        .matches(/@uce\.edu\.ec$/, "Debe ser correo institucional @uce.edu.ec")
+        .required("Requerido"),
       password: Yup.string()
-        .min(6, "Password must be at least 6 characters")
-        .required("Required"),
+        .min(6, "Mínimo 6 caracteres")
+        .required("Requerido"),
     }),
     onSubmit: async (values) => {
       setAuthError(null);
@@ -31,60 +83,19 @@ const Login = () => {
       try {
         let result;
         if (isSignUp) {
-          // Sign Up attempt
-          result = await supabase.auth.signUp({
-            email,
-            password,
-          });
+          result = await supabase.auth.signUp({ email, password });
         } else {
-          // Sign In attempt
-          result = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+          result = await supabase.auth.signInWithPassword({ email, password });
         }
 
         if (result.error) throw result.error;
 
-        // --- INTELLIGENT REDIRECT LOGIC ---
-        if (result.data.user) {
-          // 1. Check user role
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", result.data.user.id)
-            .single();
-
-          if (profileError) {
-            console.error("Error fetching profile:", profileError);
-            navigate("/dashboard");
-            return;
-          }
-
-          // 2. Role-based Routing
-          if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
-            navigate("/admin");
-          } else {
-            navigate("/dashboard");
-          }
-        } else if (isSignUp && !result.data.session) {
-          setAuthError(
-            "Account created. Please verify your email if required.",
-          );
+        if (isSignUp && !result.data.session) {
+          setAuthError("Cuenta creada. Verifica tu correo.");
         }
       } catch (error) {
-        // Friendly Error Handling
-        if (
-          error.message.includes("Access Denied") ||
-          error.message.includes("Acceso Denegado")
-        ) {
-          setAuthError(
-            "Error: This email is not on the official scholarship list.",
-          );
-        } else if (error.message.includes("Invalid login credentials")) {
-          setAuthError(
-            "Invalid credentials. Please check your email and password.",
-          );
+        if (error.message.includes("Invalid login credentials")) {
+          setAuthError("Credenciales inválidas.");
         } else {
           setAuthError(error.message);
         }
@@ -93,27 +104,49 @@ const Login = () => {
   });
 
   const handleGoogleLogin = async () => {
-    // Placeholder for Google Auth logic if implemented later
-    alert("Google Sign-In integration would happen here.");
+    setVerifying(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/login", // Vuelve aquí para que el useEffect redirija
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      alert("Error Google: " + error.message);
+      setVerifying(false);
+    }
   };
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-sans">
+        <Loader2 className="h-10 w-10 text-blue-800 animate-spin mb-4" />
+        <p className="text-gray-500 font-medium">Verificando credenciales...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in font-sans">
-      {/* Title Section matching PDF */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
-        <h1 className="text-4xl font-extrabold text-brand-blue tracking-tight">
-          Scholarship
+        <h1 className="text-4xl font-extrabold text-blue-900 tracking-tight">
+          Sistema de Becas
         </h1>
-        <h2 className="text-3xl font-bold text-brand-blue mt-1">Management</h2>
+        <h2 className="text-3xl font-bold text-blue-800 mt-1">UCE</h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-10 px-8 shadow-xl rounded-2xl border border-gray-100">
-          {/* Google Button (Mockup based on PDF) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex justify-center items-center gap-3 px-4 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all mb-6"
+            className="w-full flex justify-center items-center gap-3 px-4 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all mb-4"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
@@ -133,8 +166,13 @@ const Login = () => {
                 fill="#EA4335"
               />
             </svg>
-            Sign in with Google
+            Ingresar con Google
           </button>
+
+          <p className="text-center text-xs text-gray-500 mb-6 px-2">
+            <strong>Invitados:</strong> Usen Google para acceder al Portal de
+            Transparencia.
+          </p>
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
@@ -142,19 +180,15 @@ const Login = () => {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-white text-gray-400 font-medium">
-                OR
+                O con Correo Institucional
               </span>
             </div>
           </div>
 
           <form className="space-y-5" onSubmit={formik.handleSubmit}>
-            {/* Email Field */}
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-semibold text-gray-700 mb-1"
-              >
-                Institutional Email
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Correo Institucional
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -164,12 +198,8 @@ const Login = () => {
                   id="email"
                   type="email"
                   {...formik.getFieldProps("email")}
-                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm placeholder-gray-400 transition-shadow ${
-                    formik.touched.email && formik.errors.email
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  placeholder="student@uce.edu.ec"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-blue-800 sm:text-sm"
+                  placeholder="estudiante@uce.edu.ec"
                 />
               </div>
               {formik.touched.email && formik.errors.email && (
@@ -179,22 +209,10 @@ const Login = () => {
               )}
             </div>
 
-            {/* Password Field */}
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold text-gray-700"
-                >
-                  Password
-                </label>
-                <a
-                  href="#"
-                  className="text-xs font-medium text-brand-blue hover:text-blue-800"
-                >
-                  Forgot password?
-                </a>
-              </div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Contraseña
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
@@ -203,8 +221,8 @@ const Login = () => {
                   id="password"
                   type="password"
                   {...formik.getFieldProps("password")}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue sm:text-sm placeholder-gray-400 transition-shadow"
-                  placeholder="Enter your password"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-blue-800 sm:text-sm"
+                  placeholder="••••••"
                 />
               </div>
               {formik.touched.password && formik.errors.password && (
@@ -214,69 +232,44 @@ const Login = () => {
               )}
             </div>
 
-            {/* Error Feedback */}
             {authError && (
               <div className="rounded-lg bg-red-50 p-4 border border-red-100">
                 <div className="flex">
-                  <div className="flex-shrink-0">
-                    <AlertCircle
-                      className="h-5 w-5 text-red-500"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">
-                      {authError}
-                    </h3>
-                  </div>
+                  <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                  <p className="text-sm font-medium text-red-800">
+                    {authError}
+                  </p>
                 </div>
               </div>
             )}
 
-            {/* Submit Button (RED as per PDF) */}
             <button
               type="submit"
               disabled={formik.isSubmitting}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-brand-red hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 disabled:opacity-70 transition-all transform active:scale-95"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-blue-900 hover:bg-blue-800 focus:outline-none transition-all"
             >
               {formik.isSubmitting ? (
                 <Loader2 className="animate-spin h-5 w-5" />
               ) : isSignUp ? (
-                "Activate Account"
+                "Crear Cuenta"
               ) : (
-                "Log In"
+                "Iniciar Sesión"
               )}
             </button>
           </form>
 
-          {/* Toggle Sign Up / Sign In */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500 mb-3">
-              {isSignUp
-                ? "Already have an account?"
-                : "New scholarship recipient?"}
-            </p>
+          <div className="mt-8 text-center border-t border-gray-100 pt-6">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setAuthError(null);
               }}
-              className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
             >
-              {isSignUp ? "Go to Login" : "Activate via Email"}
+              {isSignUp
+                ? "¿Ya tienes cuenta? Inicia sesión"
+                : "¿Eres nuevo? Regístrate aquí"}
             </button>
-          </div>
-
-          <div className="mt-6 text-center flex justify-between text-xs text-gray-400">
-            <a href="#" className="hover:underline">
-              Privacy Policy
-            </a>
-            <a href="#" className="hover:underline">
-              Terms of Service
-            </a>
-            <a href="#" className="hover:underline">
-              Help
-            </a>
           </div>
         </div>
       </div>
