@@ -1,6 +1,6 @@
-import React from 'react';
+import React from "react";
 
-const SkeletonLoader = ({ className = '', children }) => {
+const SkeletonLoader = ({ className = "", children }) => {
   return (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}>
       {children}
