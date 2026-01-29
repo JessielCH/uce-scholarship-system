@@ -17,8 +17,14 @@ import {
 } from "lucide-react";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
-const fetchScholars = async () => {
-  const { data, error } = await supabase
+// 1. Modificar la función para aceptar el rango
+const fetchScholars = async ({ queryKey }) => {
+  const [_key, page] = queryKey;
+  const ITEMS_PER_PAGE = 20;
+  const from = page * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE - 1;
+
+  const { data, error, count } = await supabase
     .from("scholarship_selections")
     .select(
       `
@@ -27,26 +33,33 @@ const fetchScholars = async () => {
       careers (name),
       documents (*)
     `,
+      { count: "exact" }, // Obtenemos el total para la UI
     )
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(from, to); // Aplicamos el rango de Supabase
 
   if (error) throw error;
-  return data;
+  return { data, count };
 };
 
 const ScholarsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // ESTADOS (Deben ir aquí arriba)
+  const [page, setPage] = useState(0);
   const [processingId, setProcessingId] = useState(null);
 
-  const {
-    data: scholars,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["scholars"],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["scholars", page], // Clave de búsqueda incluye la página
     queryFn: fetchScholars,
+    placeholderData: (previousData) => previousData,
   });
+
+  const scholars = data?.data;
+  const totalCount = data?.count;
+
+  // ... rest of your mutations (statusMutation, generateContractMutation)
 
   // MUTATION: Update Status with Payment Logic
   const statusMutation = useMutation({
@@ -592,6 +605,29 @@ const ScholarsList = () => {
             ))}
           </tbody>
         </table>
+        {/* Debajo del cierre de la tabla */}
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <button
+            onClick={() => setPage((old) => Math.max(old - 1, 0))}
+            disabled={page === 0}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-md disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <span className="text-sm text-gray-600">Página {page + 1}</span>
+          <button
+            onClick={() => {
+              if (scholars?.length === 20) {
+                // Si la página está llena, hay posibilidad de más
+                setPage((old) => old + 1);
+              }
+            }}
+            disabled={scholars?.length < 20}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-md disabled:opacity-50"
+          >
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   );
