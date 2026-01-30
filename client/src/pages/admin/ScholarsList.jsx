@@ -309,9 +309,12 @@ const ScholarsList = () => {
         <h3 className="text-lg font-bold text-brand-blue">
           Gestión de Becarios
         </h3>
-        
+
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+          />
           <input
             type="text"
             placeholder="Buscar por nombre, apellido o ID..."
@@ -323,7 +326,7 @@ const ScholarsList = () => {
             }}
           />
         </div>
-        
+
         <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded border shadow-sm">
           Total: {totalCount || 0}
         </span>
