@@ -5,6 +5,7 @@ import { sendNotification } from "../../utils/emailService";
 import { generateContractPDF } from "../../utils/generateContract";
 import { generateReceiptPDF } from "../../utils/generateReceipt";
 import { useAuth } from "../../context/AuthContext";
+import { useDebounce } from "../../hooks/useDebounce"; // Importación del nuevo hook
 import {
   CheckCircle,
   XCircle,
@@ -12,31 +13,39 @@ import {
   DollarSign,
   Loader2,
   Eye,
-  AlertTriangle,
   Download,
+  Search,
 } from "lucide-react";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
-// 1. Modificar la función para aceptar el rango
+// 1. Función de fetch actualizada con Lógica de Búsqueda
 const fetchScholars = async ({ queryKey }) => {
-  const [_key, page] = queryKey;
+  const [_key, page, searchTerm] = queryKey;
   const ITEMS_PER_PAGE = 20;
   const from = page * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  const { data, error, count } = await supabase
-    .from("scholarship_selections")
-    .select(
-      `
+  let query = supabase.from("scholarship_selections").select(
+    `
       *,
-      students (first_name, last_name, national_id, university_email),
+      students!inner (first_name, last_name, national_id, university_email),
       careers (name),
       documents (*)
     `,
-      { count: "exact" }, // Obtenemos el total para la UI
-    )
+    { count: "exact" },
+  );
+
+  // Filtro de búsqueda (Buscamos en la tabla relacionada 'students')
+  if (searchTerm) {
+    query = query.or(
+      `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,national_id.ilike.%${searchTerm}%`,
+      { foreignTable: "students" },
+    );
+  }
+
+  const { data, error, count } = await query
     .order("updated_at", { ascending: false })
-    .range(from, to); // Aplicamos el rango de Supabase
+    .range(from, to);
 
   if (error) throw error;
   return { data, count };
@@ -46,12 +55,16 @@ const ScholarsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // ESTADOS (Deben ir aquí arriba)
+  // ESTADOS
   const [page, setPage] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
   const [processingId, setProcessingId] = useState(null);
 
+  // Aplicamos Debounce al término de búsqueda (500ms)
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["scholars", page], // Clave de búsqueda incluye la página
+    queryKey: ["scholars", page, debouncedSearch], // La query depende del buscador debounced
     queryFn: fetchScholars,
     placeholderData: (previousData) => previousData,
   });
@@ -291,13 +304,28 @@ const ScholarsList = () => {
 
   return (
     <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+      {/* Header con Buscador */}
+      <div className="px-6 py-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
         <h3 className="text-lg font-bold text-brand-blue">
-          Scholarship Recipients Management
+          Gestión de Becarios
         </h3>
+        
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, apellido o ID..."
+            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(0); // Reiniciar a página 1 al buscar
+            }}
+          />
+        </div>
+        
         <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded border shadow-sm">
-          Total: {scholars?.length || 0}
+          Total: {totalCount || 0}
         </span>
       </div>
 
@@ -433,7 +461,7 @@ const ScholarsList = () => {
                                     "CHANGES_REQUESTED"
                                 ? "bg-red-100 text-red-800 border-red-200"
                                 : item.status?.toUpperCase() === "APPROVED"
-                                  ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                                  ? "returnbg-indigo-100 text-indigo-800 border-indigo-200"
                                   : item.status?.toUpperCase() ===
                                       "DOCS_UPLOADED"
                                     ? "bg-yellow-100 text-yellow-800 border-yellow-200"
