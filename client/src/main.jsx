@@ -5,13 +5,16 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import App from "./App";
 import "./index.css";
 
-// Professional configuration: limited retries and staleTime to prevent unnecessary requests
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 1000 * 60 * 5, // Data remains fresh for 5 minutes
-      refetchOnWindowFocus: false,
+      // Aumenta el staleTime para que no intente cargar
+      // CADA VEZ que cambias de pestaña si han pasado menos de 30 segundos
+      staleTime: 1000 * 30,
+      refetchOnWindowFocus: true,
+      // Evita que la pantalla se ponga en blanco mientras recarga en segundo plano
+      refetchOnMount: false,
     },
   },
 });

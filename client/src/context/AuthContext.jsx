@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import { supabase } from "../services/supabaseClient";
 
 const AuthContext = createContext();
@@ -6,124 +13,85 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Empieza cargando
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = useCallback(async (authUser) => {
+    if (!authUser) return null;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error("❌ [Auth] Error cargando perfil:", err.message);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    async function getSession() {
+    async function initialize() {
       try {
-        // 1. Obtener sesión actual
+        // Intentar recuperar sesión actual
         const {
-          data: { session },
+          data: { session: initialSession },
+          error,
         } = await supabase.auth.getSession();
 
+        if (error) {
+          console.error("🚨 [Auth] Sesión corrupta detectada. Limpiando...");
+          await supabase.auth.signOut(); // Limpieza forzada de Supabase
+          throw error;
+        }
+
         if (mounted) {
-          if (session) {
-            setSession(session);
-
-            // Intentamos obtener perfil, pero si falla no bloqueamos la app
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", session.user.id)
-              .maybeSingle(); // maybeSingle no lanza error si es null
-
-            setUser({ ...session.user, ...profile });
-          } else {
-            setSession(null);
-            setUser(null);
+          if (initialSession) {
+            const profile = await fetchProfile(initialSession.user);
+            setSession(initialSession);
+            setUser({ ...initialSession.user, ...profile });
           }
         }
       } catch (error) {
-        console.error("Auth init error:", error);
+        console.error("❌ [Auth] Error en inicialización:", error.message);
+        // No bloqueamos el sistema, permitimos que redirija a Login
       } finally {
-        if (mounted) {
-          setLoading(false); // SOLO AQUÍ dejamos de cargar
-        }
+        if (mounted) setLoading(false);
       }
     }
 
-    getSession();
+    initialize();
 
-    // 2. Escuchar cambios (Login con Google, Logout, etc)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (mounted) {
-        setSession(session);
-        if (session) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", session.user.id)
-            .maybeSingle();
-          setUser({ ...session.user, ...profile });
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
+
+      console.log(`🔔 [Auth] Evento: ${event}`);
+
+      // Solo actualizamos si el token realmente cambió
+      if (newSession?.access_token !== session?.access_token) {
+        if (newSession) {
+          const profile = await fetchProfile(newSession.user);
+          setSession(newSession);
+          setUser({ ...newSession.user, ...profile });
         } else {
+          setSession(null);
           setUser(null);
         }
-        setLoading(false);
       }
+
+      setLoading(false);
     });
-
-    // 3. Refrescar sesión cuando la ventana gana foco (para evitar sesiones obsoletas)
-    const handleWindowFocus = async () => {
-      if (mounted && session) {
-        try {
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            console.error("Error refreshing session:", error);
-            // Si falla, limpiar sesión
-            setSession(null);
-            setUser(null);
-          } else if (data.session) {
-            setSession(data.session);
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", data.session.user.id)
-              .maybeSingle();
-            setUser({ ...data.session.user, ...profile });
-          }
-        } catch (err) {
-          console.error("Session refresh error:", err);
-        }
-      }
-    };
-
-    window.addEventListener("focus", handleWindowFocus);
-
-    // 4. Intervalo para refrescar sesión cada 2 minutos (120000 ms) si hay sesión activa
-    const sessionRefreshInterval = setInterval(async () => {
-      if (mounted && session) {
-        try {
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            console.error("Auto refresh error:", error);
-            setSession(null);
-            setUser(null);
-          } else if (data.session) {
-            setSession(data.session);
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", data.session.user.id)
-              .maybeSingle();
-            setUser({ ...data.session.user, ...profile });
-          }
-        } catch (err) {
-          console.error("Auto refresh error:", err);
-        }
-      }
-    }, 120000); // 2 minutos
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      window.removeEventListener("focus", handleWindowFocus);
-      clearInterval(sessionRefreshInterval);
     };
-  }, []);
+  }, [fetchProfile, session?.access_token]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -131,15 +99,24 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const value = { session, user, loading, signOut };
+  const authValue = useMemo(
+    () => ({
+      session,
+      user,
+      loading,
+      signOut,
+    }),
+    [session, user, loading],
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={authValue}>{children}</AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (context === undefined)
     throw new Error("useAuth must be used within an AuthProvider");
-  }
   return context;
 };
