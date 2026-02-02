@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import { processScholarshipFile } from "../../utils/scholarshipLogic";
 import { supabase } from "../../services/supabaseClient";
+import { useAuth } from "../../context/AuthContext";
 import {
   UploadCloud,
   FileSpreadsheet,
   CheckCircle,
-  AlertTriangle,
   Save,
   Loader2,
   Trash2,
@@ -14,6 +14,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 
 const IngestData = () => {
+  const { user } = useAuth();
   const [file, setFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [stats, setStats] = useState(null);
@@ -63,6 +64,14 @@ const IngestData = () => {
     }
 
     setIsUploading(true);
+
+    // Log de inicio de operación en consola
+    console.group("🚀 [AUDIT LOG] Inicio de Importación Masiva");
+    console.log(`Usuario: ${user?.email} (ID: ${user?.id})`);
+    console.log(`Archivo: ${file?.name}`);
+    console.log(`Periodo Académico: ${activePeriod?.name}`);
+    console.groupEnd();
+
     try {
       // 1. Prepare Students Upsert (Mass Batch)
       const studentsPayload = previewData.map((s) => ({
@@ -120,22 +129,23 @@ const IngestData = () => {
         if (selError) throw selError;
       }
 
-      // Audit Log
-      await supabase.from("audit_logs").insert({
-        action: "BULK_IMPORT",
-        target_entity: "scholarship_selections",
-        target_id: activePeriod.id,
-        details: {
-          filename: file.name,
-          total_processed: stats.total,
-          selected: stats.selected,
-        },
+      // Reemplazo de Audit Log en DB por Console Log detallado
+      console.group("✅ [AUDIT LOG] Importación Completada Exitosamente");
+      console.log(`Acción: BULK_IMPORT`);
+      console.log(`Entidad: scholarship_selections`);
+      console.log(`Resultados:`, {
+        filename: file.name,
+        total_procesados: stats.total,
+        seleccionados: stats.selected,
+        carreras_afectadas: stats.careers,
+        timestamp: new Date().toISOString(),
       });
+      console.groupEnd();
 
       setUploadStatus("success");
       setFile(null);
     } catch (error) {
-      console.error(error);
+      console.error("❌ [AUDIT LOG] Error en Importación:", error);
       alert("Error saving to DB: " + error.message);
       setUploadStatus("error");
     } finally {

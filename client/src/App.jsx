@@ -23,7 +23,6 @@ import DashboardHome from "./components/admin/DashboardHome"; // <--- EL SWITCH 
 import ScholarsList from "./pages/admin/ScholarsList"; // Gestión Becarios
 import IngestData from "./pages/admin/IngestData"; // Carga Excel
 import StaffSettings from "./pages/admin/StaffSettings"; // Gestión Usuarios
-import AuditLogs from "./pages/admin/AuditLogs"; // Auditoría
 
 function App() {
   return (
@@ -50,7 +49,6 @@ function App() {
           {/* 4. Rutas de STAFF y ADMIN */}
           <Route element={<RoleRoute allowedRoles={["ADMIN", "STAFF"]} />}>
             <Route path="/admin" element={<AdminLayout />}>
-              {/* --- CAMBIO CLAVE AQUÍ --- */}
               {/* Usamos DashboardHome como index. Este componente decide internamente */}
               {/* si mostrar AdminDashboard o StaffDashboard según el rol */}
               <Route index element={<DashboardHome />} />
@@ -62,7 +60,7 @@ function App() {
               {/* Exclusivo ADMIN */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="settings" element={<StaffSettings />} />
-                <Route path="logs" element={<AuditLogs />} />
+                {/* La ruta de logs ha sido eliminada */}
               </Route>
             </Route>
           </Route>

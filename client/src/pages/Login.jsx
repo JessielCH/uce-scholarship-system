@@ -8,12 +8,12 @@ import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { session } = useAuth(); // Usamos la sesión del contexto
+  const { session } = useAuth();
   const [authError, setAuthError] = useState(null);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [verifying, setVerifying] = useState(false); // Estado local de redirección
+  const [verifying, setVerifying] = useState(false);
 
-  // --- LÓGICA DE REDIRECCIÓN ---
+  // --- LÓGICA DE REDIRECCIÓN CON AUDITORÍA ---
   useEffect(() => {
     if (session) {
       checkUserRoleAndRedirect(session.user);
@@ -22,18 +22,24 @@ const Login = () => {
 
   const checkUserRoleAndRedirect = async (user) => {
     setVerifying(true);
-    try {
-      console.log("Verificando rol para:", user.email);
 
+    console.group("🔐 [AUDIT LOG] Verificación de Rol y Redirección");
+    console.log(`Usuario autenticado: ${user.email}`);
+    console.log(`ID de Auth: ${user.id}`);
+
+    try {
       // 1. ¿Es STAFF o ADMIN?
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
-        .maybeSingle(); // <--- IMPORTANTE: No da error si es null
+        .maybeSingle();
 
       if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
-        console.log("Rol detectado: Admin/Staff");
+        console.log(
+          `✅ Resultado: Acceso Administrativo detectado (${profile.role})`,
+        );
+        console.groupEnd();
         navigate("/admin", { replace: true });
         return;
       }
@@ -46,16 +52,23 @@ const Login = () => {
         .maybeSingle();
 
       if (studentRecord) {
-        console.log("Rol detectado: Estudiante");
+        console.log("✅ Resultado: Acceso Estudiante detectado");
+        console.groupEnd();
         navigate("/dashboard", { replace: true });
       } else {
         // 3. Si no es nada de lo anterior -> INVITADO
-        console.log("Rol detectado: Invitado");
+        console.log(
+          "⚠️ Resultado: Usuario no encontrado en registros oficiales. Redirigiendo a INVITADO.",
+        );
+        console.groupEnd();
         navigate("/guest", { replace: true });
       }
     } catch (error) {
-      console.error("Error en redirección:", error);
-      // Si falla algo, lo mandamos a invitado por defecto para que no se quede trabado
+      console.error(
+        "❌ [AUDIT LOG] Error crítico en la verificación de rol:",
+        error.message,
+      );
+      console.groupEnd();
       navigate("/guest", { replace: true });
     } finally {
       setVerifying(false);
@@ -80,6 +93,10 @@ const Login = () => {
       setAuthError(null);
       const { email, password } = values;
 
+      console.group("🔑 [AUDIT LOG] Intento de Autenticación");
+      console.log(`Acción: ${isSignUp ? "SIGN_UP" : "SIGN_IN"}`);
+      console.log(`Correo: ${email}`);
+
       try {
         let result;
         if (isSignUp) {
@@ -90,10 +107,19 @@ const Login = () => {
 
         if (result.error) throw result.error;
 
+        console.log("✅ [AUDIT LOG] Respuesta de Supabase Exitosa");
+        console.groupEnd();
+
         if (isSignUp && !result.data.session) {
           setAuthError("Cuenta creada. Verifica tu correo.");
         }
       } catch (error) {
+        console.error(
+          "❌ [AUDIT LOG] Fallo en la autenticación:",
+          error.message,
+        );
+        console.groupEnd();
+
         if (error.message.includes("Invalid login credentials")) {
           setAuthError("Credenciales inválidas.");
         } else {
@@ -105,11 +131,14 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     setVerifying(true);
+    console.group("🌐 [AUDIT LOG] Inicio de Sesión Externo (OAuth)");
+    console.log("Proveedor: Google");
+
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin + "/login", // Vuelve aquí para que el useEffect redirija
+          redirectTo: window.location.origin + "/login",
           queryParams: {
             access_type: "offline",
             prompt: "consent",
@@ -117,7 +146,11 @@ const Login = () => {
         },
       });
       if (error) throw error;
+      console.log("✅ [AUDIT LOG] Redirección a OAuth iniciada correctamente");
+      console.groupEnd();
     } catch (error) {
+      console.error("❌ [AUDIT LOG] Error en Google OAuth:", error.message);
+      console.groupEnd();
       alert("Error Google: " + error.message);
       setVerifying(false);
     }
@@ -170,8 +203,7 @@ const Login = () => {
           </button>
 
           <p className="text-center text-xs text-gray-500 mb-6 px-2">
-            <strong>Invitados:</strong> Usen Google para acceder al Portal de
-            Transparencia.
+            Invitados: Usen Google para acceder al Portal de Transparencia.
           </p>
 
           <div className="relative mb-6">

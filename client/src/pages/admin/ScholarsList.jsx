@@ -5,7 +5,7 @@ import { sendNotification } from "../../utils/emailService";
 import { generateContractPDF } from "../../utils/generateContract";
 import { generateReceiptPDF } from "../../utils/generateReceipt";
 import { useAuth } from "../../context/AuthContext";
-import { useDebounce } from "../../hooks/useDebounce"; // Importación del nuevo hook
+import { useDebounce } from "../../hooks/useDebounce";
 import {
   CheckCircle,
   XCircle,
@@ -15,10 +15,11 @@ import {
   Eye,
   Download,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
-// 1. Función de fetch actualizada con Lógica de Búsqueda
 const fetchScholars = async ({ queryKey }) => {
   const [_key, page, searchTerm] = queryKey;
   const ITEMS_PER_PAGE = 20;
@@ -35,7 +36,6 @@ const fetchScholars = async ({ queryKey }) => {
     { count: "exact" },
   );
 
-  // Filtro de búsqueda (Buscamos en la tabla relacionada 'students')
   if (searchTerm) {
     query = query.or(
       `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,national_id.ilike.%${searchTerm}%`,
@@ -54,17 +54,13 @@ const fetchScholars = async ({ queryKey }) => {
 const ScholarsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  // ESTADOS
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [processingId, setProcessingId] = useState(null);
-
-  // Aplicamos Debounce al término de búsqueda (500ms)
   const debouncedSearch = useDebounce(searchTerm, 500);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["scholars", page, debouncedSearch], // La query depende del buscador debounced
+  const { data, isLoading } = useQuery({
+    queryKey: ["scholars", page, debouncedSearch],
     queryFn: fetchScholars,
     placeholderData: (previousData) => previousData,
   });
@@ -72,9 +68,6 @@ const ScholarsList = () => {
   const scholars = data?.data;
   const totalCount = data?.count;
 
-  // ... rest of your mutations (statusMutation, generateContractMutation)
-
-  // MUTATION: Update Status with Payment Logic
   const statusMutation = useMutation({
     mutationFn: async ({
       id,
@@ -84,39 +77,27 @@ const ScholarsList = () => {
       reason = "",
     }) => {
       setProcessingId(id);
+      console.group(`🚀 [AUDIT] Acción: ${newStatus}`);
+      console.log(`Operador: ${user?.email}`);
+      console.log(`Beneficiario: ${student.first_name} ${student.last_name}`);
 
       try {
-        // SPECIAL CASE: PAYMENT ('PAID') -> Generate Receipt
         if (newStatus === "PAID") {
-          console.log("🖨️ Generating payment receipt...");
-
-          // 1. Generate PDF Blob
           const pdfBlob = generateReceiptPDF(student, scholarshipData);
-          const fileName = `${Date.now()}_payment_receipt.pdf`;
-          const filePath = `receipts/${fileName}`;
-
-          // 2. Upload to Supabase Storage
-          const { error: uploadError } = await supabase.storage
+          const filePath = `receipts/${Date.now()}_comprobante.pdf`;
+          await supabase.storage
             .from("scholarship-docs")
             .upload(filePath, pdfBlob);
-
-          if (uploadError) throw uploadError;
-
-          // 3. Create Document Record
-          const { error: docError } = await supabase.from("documents").insert({
+          await supabase.from("documents").insert({
             selection_id: id,
             document_type: "PAYMENT_RECEIPT",
             file_path: filePath,
             version: 1,
           });
-
-          if (docError) throw docError;
+          console.log("✅ Recibo generado");
         }
 
-        // --- NORMAL UPDATE FLOW ---
-
-        // 4. Update status in scholarship_selections
-        const { error: updateError } = await supabase
+        await supabase
           .from("scholarship_selections")
           .update({
             status: newStatus,
@@ -125,18 +106,8 @@ const ScholarsList = () => {
           })
           .eq("id", id);
 
-        if (updateError) throw updateError;
-
-        // 5. Audit Log
-        await supabase.from("audit_logs").insert({
-          action: `CHANGE_STATUS_${newStatus}`,
-          target_entity: "scholarship_selections",
-          target_id: id,
-          details: { reason, generated_receipt: newStatus === "PAID" },
-          performed_by: user.id,
-        });
-
-        // 6. Send Email Notification
+        console.log("✅ Actualización en Base de Datos exitosa");
+        console.groupEnd();
         await sendNotification(
           `${student.first_name} ${student.last_name}`,
           student.university_email,
@@ -144,7 +115,7 @@ const ScholarsList = () => {
           reason,
         );
       } catch (err) {
-        console.error("Process error:", err);
+        console.error("❌ Error:", err);
         throw err;
       }
     },
@@ -152,164 +123,70 @@ const ScholarsList = () => {
       queryClient.invalidateQueries(["scholars"]);
       setProcessingId(null);
     },
-    onError: (err) => {
-      alert("Error: " + err.message);
-      setProcessingId(null);
-    },
   });
 
-  // MUTATION: Generate Contract
   const generateContractMutation = useMutation({
     mutationFn: async ({ selection, student }) => {
       setProcessingId(selection.id);
-
-      // 1. Generate PDF
-      const contractBlob = await generateContractPDF(
-        student,
-        selection,
-        selection.academic_periods,
-      );
-
-      // 2. Upload to Storage
-      const fileName = `contract_${selection.id}_${Date.now()}.pdf`;
-      const filePath = `contracts/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("scholarship-docs")
-        .upload(filePath, contractBlob);
-
-      if (uploadError) throw uploadError;
-
-      // 3. Register Document
-      const { error: docError } = await supabase.from("documents").insert({
-        selection_id: selection.id,
-        document_type: "CONTRACT_UNSIGNED",
-        file_path: filePath,
-        version: 1,
-      });
-
-      if (docError) throw docError;
-
-      // 4. Update Status
-      const { error: statusError } = await supabase
-        .from("scholarship_selections")
-        .update({ status: "CONTRACT_GENERATED" })
-        .eq("id", selection.id);
-
-      if (statusError) throw statusError;
-
-      // 5. Audit Log
-      await supabase.from("audit_logs").insert({
-        action: "GENERATE_CONTRACT",
-        target_entity: "scholarship_selections",
-        target_id: selection.id,
-        details: { filename: fileName },
-      });
-
-      // 6. Send Notification
-      await sendNotification(
-        `${student.first_name} ${student.last_name}`,
-        student.university_email,
-        "CONTRACT_GENERATED",
-        "",
-      );
+      console.group("📝 [AUDIT] Generando Contrato");
+      try {
+        const contractBlob = await generateContractPDF(
+          student,
+          selection,
+          selection.academic_periods,
+        );
+        const filePath = `contracts/cnt_${selection.id}_${Date.now()}.pdf`;
+        await supabase.storage
+          .from("scholarship-docs")
+          .upload(filePath, contractBlob);
+        await supabase.from("documents").insert({
+          selection_id: selection.id,
+          document_type: "CONTRACT_UNSIGNED",
+          file_path: filePath,
+          version: 1,
+        });
+        await supabase
+          .from("scholarship_selections")
+          .update({ status: "CONTRACT_GENERATED" })
+          .eq("id", selection.id);
+        console.log("✅ Contrato subido correctamente");
+        console.groupEnd();
+        await sendNotification(
+          `${student.first_name} ${student.last_name}`,
+          student.university_email,
+          "CONTRACT_GENERATED",
+          "",
+        );
+      } catch (err) {
+        console.error("❌ Error en contrato:", err);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["scholars"]);
       setProcessingId(null);
     },
-    onError: (err) => {
-      alert("Error generating contract: " + err.message);
-      setProcessingId(null);
-    },
   });
 
-  const getDocUrl = (docs) => {
-    const cert = docs?.find((d) => d.document_type === "BANK_CERT");
-    if (!cert) return null;
-    const { data } = supabase.storage
-      .from("scholarship-docs")
-      .getPublicUrl(cert.file_path);
-    return data.publicUrl;
-  };
-
   const handleOpenDocument = async (filePath) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("scholarship-docs")
-        .createSignedUrl(filePath, 60);
-
-      if (error) throw error;
-      window.open(data.signedUrl, "_blank");
-    } catch (error) {
-      alert("Error opening document: " + error.message);
-    }
+    const { data } = await supabase.storage
+      .from("scholarship-docs")
+      .createSignedUrl(filePath, 60);
+    window.open(data.signedUrl, "_blank");
   };
 
   if (isLoading)
     return (
-      <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
-        {/* Header Skeleton */}
-        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <SkeletonLoader className="h-6 w-64" />
-          <SkeletonLoader className="h-6 w-20" />
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <SkeletonLoader className="h-4 w-16" />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <SkeletonLoader className="h-4 w-24" />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <SkeletonLoader className="h-4 w-20" />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <SkeletonLoader className="h-4 w-12" />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <SkeletonLoader className="h-4 w-16" />
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <SkeletonLoader className="h-4 w-32" />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <SkeletonLoader className="h-4 w-24" />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <SkeletonLoader className="h-4 w-20" />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <SkeletonLoader className="h-6 w-16 rounded-full" />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <SkeletonLoader className="h-8 w-20" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="p-8">
+        <SkeletonLoader className="h-64 w-full" />
       </div>
     );
 
   return (
     <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
-      {/* Header con Buscador */}
       <div className="px-6 py-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
         <h3 className="text-lg font-bold text-brand-blue">
           Gestión de Becarios
         </h3>
-
         <div className="relative w-full md:w-96">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -317,16 +194,15 @@ const ScholarsList = () => {
           />
           <input
             type="text"
-            placeholder="Buscar por nombre, apellido o ID..."
-            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+            placeholder="Buscar por nombre o ID..."
+            className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-brand-blue/20"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
-              setPage(0); // Reiniciar a página 1 al buscar
+              setPage(0);
             }}
           />
         </div>
-
         <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded border shadow-sm">
           Total: {totalCount || 0}
         </span>
@@ -336,20 +212,20 @@ const ScholarsList = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Student
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">
+                Estudiante
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Academic Details
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">
+                Carrera
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Documents
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">
+                Documentos
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Status
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">
+                Estado
               </th>
-              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Actions
+              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">
+                Acciones
               </th>
             </tr>
           </thead>
@@ -359,132 +235,46 @@ const ScholarsList = () => {
                 key={item.id}
                 className="hover:bg-blue-50/30 transition-colors"
               >
-                {/* Student Column */}
                 <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-gray-900">
-                      {item.students?.first_name} {item.students?.last_name}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {item.students?.university_email}
-                    </span>
-                    <span className="text-xs text-gray-400 font-mono mt-0.5">
-                      ID: {item.students?.national_id}
-                    </span>
+                  <div className="text-sm font-semibold">
+                    {item.students?.first_name} {item.students?.last_name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {item.students?.national_id}
                   </div>
                 </td>
-
-                {/* Details Column */}
-                <td className="px-6 py-4">
-                  <div className="text-sm text-gray-700 font-medium">
-                    {item.careers?.name}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Avg: <span className="font-bold">{item.average_grade}</span>{" "}
-                    | {item.academic_condition}
-                  </div>
-                  {item.bank_account_number && (
-                    <div className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded mt-1 inline-block border border-green-100">
-                      Acct: {item.bank_account_number}
-                    </div>
-                  )}
+                <td className="px-6 py-4 text-xs font-medium text-gray-700">
+                  {item.careers?.name}
                 </td>
-
-                {/* Documents Column */}
                 <td className="px-6 py-4">
-                  <div className="space-y-2">
-                    {/* Bank Cert */}
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">Bank Cert:</span>
-                      {item.documents?.find(
-                        (d) => d.document_type === "BANK_CERT",
-                      ) ? (
-                        <button
-                          onClick={() =>
-                            handleOpenDocument(
-                              item.documents.find(
-                                (d) => d.document_type === "BANK_CERT",
-                              ).file_path,
-                            )
-                          }
-                          className="flex items-center text-blue-600 hover:underline"
-                        >
-                          <Eye size={12} className="mr-1" /> View
-                        </button>
-                      ) : (
-                        <span className="text-gray-300 italic">Missing</span>
-                      )}
-                    </div>
-
-                    {/* Contract */}
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">Contract:</span>
-                      {item.documents?.find(
-                        (d) =>
-                          d.document_type === "CONTRACT_UNSIGNED" ||
-                          d.document_type === "CONTRACT_SIGNED",
-                      ) ? (
-                        <button
-                          onClick={() =>
-                            handleOpenDocument(
-                              item.documents.find(
-                                (d) =>
-                                  d.document_type === "CONTRACT_UNSIGNED" ||
-                                  d.document_type === "CONTRACT_SIGNED",
-                              ).file_path,
-                            )
-                          }
-                          className="flex items-center text-purple-600 hover:underline"
-                        >
-                          <Eye size={12} className="mr-1" /> View
-                        </button>
-                      ) : (
-                        <span className="text-gray-300 italic">None</span>
-                      )}
-                    </div>
+                  <div className="flex flex-col gap-1">
+                    {item.documents?.map((doc) => (
+                      <button
+                        key={doc.id}
+                        onClick={() => handleOpenDocument(doc.file_path)}
+                        className="text-blue-600 flex items-center gap-1 text-[10px] hover:underline"
+                      >
+                        <Eye size={10} /> {doc.document_type.replace(/_/g, " ")}
+                      </button>
+                    ))}
                   </div>
                 </td>
-
-                {/* Status Column */}
                 <td className="px-6 py-4">
                   <span
-                    className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${
-                      item.status?.toUpperCase() === "PAID"
-                        ? "bg-green-100 text-green-800 border-green-200"
-                        : item.status?.toUpperCase() === "READY_FOR_PAYMENT"
-                          ? "bg-blue-100 text-blue-800 border-blue-200"
-                          : item.status?.toUpperCase() === "CONTRACT_UPLOADED"
-                            ? "bg-purple-100 text-purple-800 border-purple-200"
-                            : item.status?.toUpperCase() ===
-                                "CONTRACT_GENERATED"
-                              ? "bg-cyan-100 text-cyan-800 border-cyan-200"
-                              : item.status?.toUpperCase() ===
-                                    "CONTRACT_REJECTED" ||
-                                  item.status?.toUpperCase() ===
-                                    "CHANGES_REQUESTED"
-                                ? "bg-red-100 text-red-800 border-red-200"
-                                : item.status?.toUpperCase() === "APPROVED"
-                                  ? "returnbg-indigo-100 text-indigo-800 border-indigo-200"
-                                  : item.status?.toUpperCase() ===
-                                      "DOCS_UPLOADED"
-                                    ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                    : "bg-gray-100 text-gray-800 border-gray-200"
-                    }`}
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${item.status === "PAID" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
                   >
                     {item.status?.replace(/_/g, " ")}
                   </span>
                 </td>
-
-                {/* Actions Column */}
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-6 py-4 text-right">
                   {processingId === item.id ? (
                     <Loader2
                       className="animate-spin ml-auto text-brand-blue"
                       size={20}
                     />
                   ) : (
-                    <div className="flex justify-end items-center gap-2">
-                      {/* ACTION: REVIEW DOCUMENTS */}
+                    <div className="flex justify-end gap-2 items-center">
+                      {/* BOTONES DE ACCIÓN COMPLETOS */}
                       {item.status?.toUpperCase() === "DOCS_UPLOADED" && (
                         <>
                           <button
@@ -493,11 +283,11 @@ const ScholarsList = () => {
                                 id: item.id,
                                 newStatus: "CHANGES_REQUESTED",
                                 student: item.students,
-                                reason: "Documento ilegible o incorrecto",
+                                reason: "Doc. ilegible",
                               })
                             }
-                            className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
-                            title="Reject Documents"
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            title="Rechazar"
                           >
                             <XCircle size={20} />
                           </button>
@@ -509,15 +299,14 @@ const ScholarsList = () => {
                                 student: item.students,
                               })
                             }
-                            className="p-1 text-green-500 hover:bg-green-50 rounded transition-colors"
-                            title="Approve Documents"
+                            className="p-1 text-green-500 hover:bg-green-50 rounded"
+                            title="Aprobar"
                           >
                             <CheckCircle size={20} />
                           </button>
                         </>
                       )}
 
-                      {/* ACTION: GENERATE CONTRACT */}
                       {item.status?.toUpperCase() === "APPROVED" && (
                         <button
                           onClick={() =>
@@ -526,13 +315,12 @@ const ScholarsList = () => {
                               student: item.students,
                             })
                           }
-                          className="flex items-center gap-1 bg-brand-blue text-white px-3 py-1.5 rounded-md text-xs hover:bg-blue-800 transition-colors shadow-sm"
+                          className="bg-brand-blue text-white px-3 py-1.5 rounded-md text-xs flex items-center gap-1 hover:bg-blue-800"
                         >
-                          <FileText size={14} /> Generate Contract
+                          <FileText size={14} /> Contrato
                         </button>
                       )}
 
-                      {/* ACTION: VALIDATE CONTRACT */}
                       {item.status?.toUpperCase() === "CONTRACT_UPLOADED" && (
                         <>
                           <button
@@ -541,11 +329,11 @@ const ScholarsList = () => {
                                 id: item.id,
                                 newStatus: "CONTRACT_REJECTED",
                                 student: item.students,
-                                reason: "Invalid signature or document",
+                                reason: "Firma inválida",
                               })
                             }
-                            className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
-                            title="Reject Contract"
+                            className="p-1 text-red-500"
+                            title="Rechazar Contrato"
                           >
                             <XCircle size={20} />
                           </button>
@@ -557,15 +345,14 @@ const ScholarsList = () => {
                                 student: item.students,
                               })
                             }
-                            className="p-1 text-green-500 hover:bg-green-50 rounded transition-colors"
-                            title="Approve Contract"
+                            className="p-1 text-green-500"
+                            title="Validar Contrato"
                           >
                             <CheckCircle size={20} />
                           </button>
                         </>
                       )}
 
-                      {/* ACTION: PAY */}
                       {item.status?.toUpperCase() === "READY_FOR_PAYMENT" && (
                         <button
                           onClick={() =>
@@ -576,58 +363,16 @@ const ScholarsList = () => {
                               scholarshipData: item,
                             })
                           }
-                          className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-md text-xs hover:bg-green-700 transition-colors shadow-sm"
+                          className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs flex items-center gap-1 hover:bg-green-700"
                         >
-                          <DollarSign size={14} /> Disburse
+                          <DollarSign size={14} /> Pagar
                         </button>
                       )}
 
-                      {/* ACTION: VIEW RECEIPT */}
                       {item.status?.toUpperCase() === "PAID" && (
-                        <div className="flex items-center gap-2">
-                          {item.documents?.find(
-                            (d) => d.document_type === "PAYMENT_RECEIPT",
-                          ) && (
-                            <button
-                              onClick={() =>
-                                handleOpenDocument(
-                                  item.documents.find(
-                                    (d) =>
-                                      d.document_type === "PAYMENT_RECEIPT",
-                                  ).file_path,
-                                )
-                              }
-                              className="text-xs text-brand-blue hover:underline flex items-center font-medium"
-                            >
-                              <Download size={12} className="mr-1" /> Receipt
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* FALLBACK STATUS TEXTS */}
-                      {item.status?.toUpperCase() === "CONTRACT_GENERATED" && (
-                        <span className="text-xs text-gray-400 italic">
-                          Waiting for student...
+                        <span className="text-xs text-green-600 font-bold flex items-center gap-1">
+                          <CheckCircle size={14} /> Pagado
                         </span>
-                      )}
-
-                      {/* DEV SHORTCUTS (Optional, remove in prod) */}
-                      {(item.status?.toUpperCase() === "SELECTED" ||
-                        item.status?.toUpperCase() === "NOTIFIED") && (
-                        <button
-                          onClick={() =>
-                            statusMutation.mutate({
-                              id: item.id,
-                              newStatus: "DOCS_UPLOADED",
-                              student: item.students,
-                            })
-                          }
-                          className="p-1 text-gray-400 hover:text-blue-500"
-                          title="Dev: Force Docs Uploaded"
-                        >
-                          <CheckCircle size={16} />
-                        </button>
                       )}
                     </div>
                   )}
@@ -636,27 +381,27 @@ const ScholarsList = () => {
             ))}
           </tbody>
         </table>
-        {/* Debajo del cierre de la tabla */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+
+        {/* Paginación */}
+        <div className="px-6 py-4 bg-gray-50 border-t flex items-center justify-between">
           <button
-            onClick={() => setPage((old) => Math.max(old - 1, 0))}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-md disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-white border rounded disabled:opacity-50"
           >
-            Anterior
+            <ChevronLeft size={16} />
           </button>
-          <span className="text-sm text-gray-600">Página {page + 1}</span>
+          <span className="text-sm font-bold text-brand-blue">
+            Página {page + 1}
+          </span>
           <button
             onClick={() => {
-              if (scholars?.length === 20) {
-                // Si la página está llena, hay posibilidad de más
-                setPage((old) => old + 1);
-              }
+              if (scholars?.length === 20) setPage((p) => p + 1);
             }}
-            disabled={scholars?.length < 20}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-md disabled:opacity-50"
+            disabled={!scholars || scholars.length < 20}
+            className="px-4 py-2 text-sm bg-white border rounded disabled:opacity-50"
           >
-            Siguiente
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>

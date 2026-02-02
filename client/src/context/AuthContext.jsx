@@ -15,18 +15,38 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Función para cargar perfil con logs detallados
   const fetchProfile = useCallback(async (authUser) => {
     if (!authUser) return null;
+
+    console.group("👤 [AUDIT LOG] Cargando Perfil de Usuario");
+    console.log(`ID: ${authUser.id}`);
+    console.log(`Email: ${authUser.email}`);
+
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
         .maybeSingle();
+
       if (error) throw error;
+
+      if (data) {
+        console.log("✅ Perfil recuperado:", {
+          rol: data.role,
+          nombre: data.full_name,
+        });
+      } else {
+        console.log(
+          "ℹ️ No se encontró un perfil extendido en la tabla 'profiles'.",
+        );
+      }
+      console.groupEnd();
       return data;
     } catch (err) {
-      console.error("❌ [Auth] Error cargando perfil:", err.message);
+      console.error("❌ [AUDIT LOG] Error cargando perfil:", err.message);
+      console.groupEnd();
       return null;
     }
   }, []);
@@ -35,29 +55,36 @@ export const AuthProvider = ({ children }) => {
     let mounted = true;
 
     async function initialize() {
+      console.log("🏗️ [AUDIT LOG] Inicializando sistema de autenticación...");
+
       try {
-        // Intentar recuperar sesión actual
         const {
           data: { session: initialSession },
           error,
         } = await supabase.auth.getSession();
 
         if (error) {
-          console.error("🚨 [Auth] Sesión corrupta detectada. Limpiando...");
-          await supabase.auth.signOut(); // Limpieza forzada de Supabase
+          console.error(
+            "🚨 [AUDIT LOG] Sesión corrupta detectada. Limpiando...",
+          );
+          await supabase.auth.signOut();
           throw error;
         }
 
         if (mounted) {
           if (initialSession) {
+            console.log("🔑 [AUDIT LOG] Sesión activa encontrada.");
             const profile = await fetchProfile(initialSession.user);
             setSession(initialSession);
             setUser({ ...initialSession.user, ...profile });
+          } else {
+            console.log(
+              "🛡️ [AUDIT LOG] No hay sesión activa. Esperando login.",
+            );
           }
         }
       } catch (error) {
-        console.error("❌ [Auth] Error en inicialización:", error.message);
-        // No bloqueamos el sistema, permitimos que redirija a Login
+        console.error("❌ [AUDIT LOG] Error en inicialización:", error.message);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -70,20 +97,23 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
-      console.log(`🔔 [Auth] Evento: ${event}`);
+      console.group(`🔔 [AUDIT LOG] Evento de Auth: ${event}`);
+      console.log(`Timestamp: ${new Date().toISOString()}`);
 
-      // Solo actualizamos si el token realmente cambió
       if (newSession?.access_token !== session?.access_token) {
         if (newSession) {
+          console.log("🔄 Actualizando datos de usuario y perfil...");
           const profile = await fetchProfile(newSession.user);
           setSession(newSession);
           setUser({ ...newSession.user, ...profile });
         } else {
+          console.log("📤 Usuario desconectado. Limpiando estado global.");
           setSession(null);
           setUser(null);
         }
       }
 
+      console.groupEnd();
       setLoading(false);
     });
 
@@ -94,6 +124,7 @@ export const AuthProvider = ({ children }) => {
   }, [fetchProfile, session?.access_token]);
 
   const signOut = async () => {
+    console.log("🚪 [AUDIT LOG] Cerrando sesión...");
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);

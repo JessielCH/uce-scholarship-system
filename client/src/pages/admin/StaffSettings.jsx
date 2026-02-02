@@ -1,6 +1,7 @@
 import React from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import { useAuth } from "../../context/AuthContext";
 import {
   UserPlus,
   Save,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 const StaffSettings = () => {
+  const { user: currentUser } = useAuth(); // Usuario administrador actual
   const [status, setStatus] = React.useState({ type: "", message: "" });
 
   const formik = useFormik({
@@ -31,8 +33,17 @@ const StaffSettings = () => {
     onSubmit: async (values, { resetForm }) => {
       setStatus({ type: "", message: "" });
 
+      // Log de inicio de creación
+      console.group("👤 [AUDIT LOG] Creación de Nuevo Usuario Staff");
+      console.log(`Ejecutado por Administrador: ${currentUser?.email}`);
+      console.log(`Datos del nuevo usuario:`, {
+        nombre: values.fullName,
+        email: values.email,
+        rol_asignado: values.role,
+        timestamp: new Date().toISOString(),
+      });
+
       try {
-        // Keeping local API call as requested
         const response = await fetch(
           "http://localhost:3000/api/admin/create-staff",
           {
@@ -48,12 +59,22 @@ const StaffSettings = () => {
 
         if (!response.ok) throw new Error(data.error || "Error creating user");
 
+        // Log de éxito
+        console.log(
+          `✅ [AUDIT LOG] Usuario ${values.email} creado exitosamente en el servidor.`,
+        );
+        console.groupEnd();
+
         setStatus({
           type: "success",
           message: `User ${values.email} created successfully!`,
         });
         resetForm();
       } catch (error) {
+        // Log de error
+        console.error(`❌ [AUDIT LOG] Error al crear usuario:`, error.message);
+        console.groupEnd();
+
         setStatus({ type: "error", message: error.message });
       }
     },

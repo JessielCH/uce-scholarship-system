@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 
 const AdminDashboard = () => {
-  // CONFIGURACIÓN: Costo promedio por beca (esto podría venir de BD)
   const AVG_SCHOLARSHIP_COST = 400;
   const BUDGET_TOTAL = 2500000;
 
@@ -28,14 +27,20 @@ const AdminDashboard = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-strategic-metrics"],
     queryFn: async () => {
-      // Obtenemos solo los estados para minimizar carga de red
-      const { data: statusCounts, error } = await supabase
+      // a. Obtener conteos de estados
+      const { data: statusCounts, error: statusError } = await supabase
         .from("scholarship_selections")
         .select("status");
 
-      if (error) throw error;
+      if (statusError) throw statusError;
 
-      // Procesamiento de métricas
+      // b. Obtener Período Activo (Dinámico)
+      const { data: periodData } = await supabase
+        .from("academic_periods")
+        .select("name")
+        .eq("is_active", true)
+        .maybeSingle();
+
       const counts = statusCounts.reduce((acc, curr) => {
         acc[curr.status] = (acc[curr.status] || 0) + 1;
         return acc;
@@ -44,6 +49,8 @@ const AdminDashboard = () => {
       const total = statusCounts.length;
       const paidCount = counts["PAID"] || 0;
       const budgetUsed = paidCount * AVG_SCHOLARSHIP_COST;
+      const criticalCases =
+        (counts["CHANGES_REQUESTED"] || 0) + (counts["CONTRACT_REJECTED"] || 0);
 
       const funnel = [
         { stage: "Solicitudes", count: total, color: "#60A5FA" },
@@ -64,14 +71,15 @@ const AdminDashboard = () => {
         total,
         budgetUsed,
         acceptanceRate: total > 0 ? ((paidCount / total) * 100).toFixed(1) : 0,
+        criticalCases: criticalCases || 0,
+        periodName: periodData?.name || "N/A",
         funnel,
       };
     },
-    // Se refresca cada 5 minutos o cuando la ventana gana foco
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 minutos de caché
+    refetchOnWindowFocus: true,
   });
 
-  // Formatear dinero
   const formatCurrency = (val) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -81,7 +89,7 @@ const AdminDashboard = () => {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="animate-spin text-blue-600 h-10 w-10" />
+        <Loader2 className="animate-spin text-brand-blue h-10 w-10" />
       </div>
     );
   }
@@ -92,18 +100,16 @@ const AdminDashboard = () => {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Briefcase className="text-blue-900" /> Control Estratégico
+            <Briefcase className="text-brand-blue" /> Control Estratégico
           </h1>
-          <p className="text-gray-500">
-            Visión global del programa de becas 2026.
-          </p>
+          <p className="text-gray-500">Visión global del programa de becas.</p>
         </div>
-        <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-lg text-sm font-medium border border-blue-100">
-          Periodo Activo: 2026-I
+        <div className="bg-blue-50 text-brand-blue px-4 py-2 rounded-lg text-sm font-medium border border-blue-100">
+          Periodo Activo: {data.periodName}
         </div>
       </div>
 
-      {/* 1. TARJETAS FINANCIERAS Y KPI */}
+      {/* 1. KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="col-span-1 md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
@@ -126,7 +132,9 @@ const AdminDashboard = () => {
           <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
             <div
               className="bg-green-500 h-3 rounded-full transition-all duration-1000"
-              style={{ width: `${(data.budgetUsed / BUDGET_TOTAL) * 100}%` }}
+              style={{
+                width: `${Math.min((data.budgetUsed / BUDGET_TOTAL) * 100, 100)}%`,
+              }}
             ></div>
           </div>
           <p className="text-xs text-gray-500 mt-2 text-right">
@@ -162,12 +170,14 @@ const AdminDashboard = () => {
               size={24}
             />
           </div>
-          <p className="text-3xl font-bold text-gray-900">12</p>
+          <p className="text-3xl font-bold text-gray-900">
+            {data.criticalCases}
+          </p>
           <p className="text-xs text-red-500 mt-1">Requieren intervención</p>
         </div>
       </div>
 
-      {/* 2. GRÁFICO DE EMBUDO (Funnel) */}
+      {/* 2. FUNNEL CHART */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-6">
@@ -206,16 +216,16 @@ const AdminDashboard = () => {
         {/* RENDIMIENTO STAFF */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Top Rendimiento Staff
+            Rendimiento Staff
           </h3>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center font-bold text-xs">
                     U{i}
                   </div>
                   <div>
@@ -231,7 +241,7 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
-          <button className="w-full mt-6 py-2 px-4 text-sm text-blue-600 font-semibold border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">
+          <button className="w-full mt-6 py-2 px-4 text-sm text-brand-blue font-semibold border border-blue-100 rounded-lg hover:bg-blue-50">
             Ver Auditoría Completa
           </button>
         </div>
