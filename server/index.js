@@ -3,14 +3,14 @@ import cors from "cors";
 import dotenv from "dotenv";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import { supabase } from "./config/supabase.js";
+import { supabase } from "./config/supabase.js"; // Ensure this uses the Service Role Key
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- CONFIGURACIÓN DE SWAGGER ---
+// --- SWAGGER CONFIGURATION ---
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
@@ -18,16 +18,16 @@ const swaggerOptions = {
       title: "UCE Scholarship API",
       version: "1.0.0",
       description:
-        "Documentación de la API del Sistema de Becas de la Universidad Central del Ecuador",
+        "API Documentation for the UCE Scholarship Management System",
     },
     servers: [
       {
         url: `http://localhost:${PORT}`,
-        description: "Servidor de Desarrollo",
+        description: "Development Server",
       },
     ],
   },
-  apis: ["./index.js"], // Indica dónde buscar las anotaciones JSDoc
+  apis: ["./index.js"],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
@@ -41,7 +41,7 @@ app.use(express.json());
  * @openapi
  * /api/admin/create-staff:
  * post:
- * summary: Crear un nuevo usuario de Staff
+ * summary: Create a new Staff user and their profile
  * tags: [Admin]
  * requestBody:
  * required: true
@@ -65,38 +65,74 @@ app.use(express.json());
  * default: STAFF
  * responses:
  * 201:
- * description: Usuario creado exitosamente
+ * description: User and profile created successfully
  * 400:
- * description: Error en la creación
+ * description: Error during creation
  */
 app.post("/api/admin/create-staff", async (req, res) => {
   const { email, password, fullName, role } = req.body;
-  console.log(`👷 Creando usuario Staff: ${email} con rol ${role}`);
+
+  // Server-side Audit Log
+  console.group(`👤 [ADMIN ACTION] Creating user: ${email}`);
+  console.log(`Assigned Role: ${role || "STAFF"}`);
 
   try {
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: email,
-      password: password,
-      email_confirm: true,
-      user_metadata: {
-        role: role || "STAFF",
-        full_name: fullName,
-      },
-    });
+    // 1. Create the user in Supabase Auth
+    // Using admin.createUser prevents logging out the current admin session
+    const { data: authData, error: authError } =
+      await supabase.auth.admin.createUser({
+        email: email,
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          role: role || "STAFF", // This metadata is read by the DB Trigger
+          full_name: fullName,
+        },
+      });
 
-    if (error) throw error;
-    res
-      .status(201)
-      .json({ message: "Usuario creado exitosamente", user: data.user });
+    if (authError) throw authError;
+
+    const newUser = authData.user;
+    console.log(`✅ Auth created: ${newUser.id}`);
+
+    // 2. IDENTITY DISTRIBUTION: Manual Profile Upsert
+    // We use 'upsert' to override the default 'STUDENT' role if the DB trigger fired first
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: newUser.id,
+        email: email,
+        full_name: fullName,
+        role: role || "STAFF",
+      },
+      { onConflict: "id" },
+    );
+
+    if (profileError) {
+      console.error(
+        "⚠️ Error creating profile, but Auth was successful:",
+        profileError.message,
+      );
+    } else {
+      console.log(
+        `✅ Profile linked in 'profiles' table with role: ${role || "STAFF"}`,
+      );
+    }
+
+    console.groupEnd();
+    res.status(201).json({
+      message: "Staff registered and distributed successfully",
+      user: newUser,
+    });
   } catch (error) {
-    console.error("❌ Error creando staff:", error.message);
+    console.groupEnd();
+    console.error("❌ Critical error during staff creation:", error.message);
     res.status(400).json({ error: error.message });
   }
 });
 
 // Health check
 app.get("/", (req, res) => {
-  res.send("UCE Scholarship API Running 🚀. Documentación en /api-docs");
+  res.send("UCE Scholarship API Running 🚀. Documentation at /api-docs");
 });
 
 app.listen(PORT, () => {
