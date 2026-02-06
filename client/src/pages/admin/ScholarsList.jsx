@@ -16,7 +16,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Filter,
+  User,
+  BookOpen,
 } from "lucide-react";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
@@ -27,7 +28,6 @@ const fetchScholars = async ({ queryKey }) => {
   const from = page * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Filtros Reales Server-Side
   let query = supabase.from("scholarship_selections").select(
     `
       *,
@@ -38,17 +38,9 @@ const fetchScholars = async ({ queryKey }) => {
     { count: "exact" },
   );
 
-  // Filtro por Estado
-  if (statusFilter) {
-    query = query.eq("status", statusFilter);
-  }
+  if (statusFilter) query = query.eq("status", statusFilter);
+  if (careerFilter) query = query.eq("career_id", careerFilter);
 
-  // Filtro por Carrera (Usando ID de carrera si es necesario)
-  if (careerFilter) {
-    query = query.eq("career_id", careerFilter);
-  }
-
-  // Búsqueda Textual (ilike)
   if (searchTerm) {
     query = query.or(
       `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,national_id.ilike.%${searchTerm}%`,
@@ -65,7 +57,6 @@ const fetchScholars = async ({ queryKey }) => {
 };
 
 const ScholarsList = () => {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
@@ -75,7 +66,6 @@ const ScholarsList = () => {
 
   const debouncedSearch = useDebounce(searchTerm, 500);
 
-  // Obtener lista de carreras para el filtro (solo una vez)
   const { data: careersData } = useQuery({
     queryKey: ["careers"],
     queryFn: async () => {
@@ -91,10 +81,8 @@ const ScholarsList = () => {
     queryKey: ["scholars", page, debouncedSearch, statusFilter, careerFilter],
     queryFn: fetchScholars,
     placeholderData: (previousData) => previousData,
-    keepPreviousData: true,
   });
 
-  // --- SPRINT 12: REALTIME MANTENIDO ---
   useEffect(() => {
     const channel = supabase
       .channel("admin-scholars-realtime")
@@ -104,7 +92,6 @@ const ScholarsList = () => {
         () => queryClient.invalidateQueries(["scholars"]),
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -113,7 +100,6 @@ const ScholarsList = () => {
   const scholars = data?.data;
   const totalCount = data?.count;
 
-  // --- MUTACIONES MANTENIDAS (statusMutation, generateContractMutation) ---
   const statusMutation = useMutation({
     mutationFn: async ({
       id,
@@ -123,37 +109,35 @@ const ScholarsList = () => {
       reason = "",
     }) => {
       setProcessingId(id);
-      try {
-        if (newStatus === "PAID") {
-          const pdfBlob = generateReceiptPDF(student, scholarshipData);
-          const filePath = `receipts/${Date.now()}_comprobante.pdf`;
-          await supabase.storage
-            .from("scholarship-docs")
-            .upload(filePath, pdfBlob);
-          await supabase.from("documents").insert({
+      if (newStatus === "PAID") {
+        const pdfBlob = generateReceiptPDF(student, scholarshipData);
+        const filePath = `receipts/${Date.now()}_comprobante.pdf`;
+        await supabase.storage
+          .from("scholarship-docs")
+          .upload(filePath, pdfBlob);
+        await supabase
+          .from("documents")
+          .insert({
             selection_id: id,
             document_type: "PAYMENT_RECEIPT",
             file_path: filePath,
             version: 1,
           });
-        }
-        await supabase
-          .from("scholarship_selections")
-          .update({
-            status: newStatus,
-            rejection_reason: reason,
-            payment_date: newStatus === "PAID" ? new Date() : null,
-          })
-          .eq("id", id);
-        await sendNotification(
-          `${student.first_name} ${student.last_name}`,
-          student.university_email,
-          newStatus,
-          reason,
-        );
-      } catch (err) {
-        throw err;
       }
+      await supabase
+        .from("scholarship_selections")
+        .update({
+          status: newStatus,
+          rejection_reason: reason,
+          payment_date: newStatus === "PAID" ? new Date() : null,
+        })
+        .eq("id", id);
+      await sendNotification(
+        `${student.first_name} ${student.last_name}`,
+        student.university_email,
+        newStatus,
+        reason,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["scholars"]);
@@ -164,35 +148,33 @@ const ScholarsList = () => {
   const generateContractMutation = useMutation({
     mutationFn: async ({ selection, student }) => {
       setProcessingId(selection.id);
-      try {
-        const contractBlob = await generateContractPDF(
-          student,
-          selection,
-          selection.academic_periods,
-        );
-        const filePath = `contracts/cnt_${selection.id}_${Date.now()}.pdf`;
-        await supabase.storage
-          .from("scholarship-docs")
-          .upload(filePath, contractBlob);
-        await supabase.from("documents").insert({
+      const contractBlob = await generateContractPDF(
+        student,
+        selection,
+        selection.academic_periods,
+      );
+      const filePath = `contracts/cnt_${selection.id}_${Date.now()}.pdf`;
+      await supabase.storage
+        .from("scholarship-docs")
+        .upload(filePath, contractBlob);
+      await supabase
+        .from("documents")
+        .insert({
           selection_id: selection.id,
           document_type: "CONTRACT_UNSIGNED",
           file_path: filePath,
           version: 1,
         });
-        await supabase
-          .from("scholarship_selections")
-          .update({ status: "CONTRACT_GENERATED" })
-          .eq("id", selection.id);
-        await sendNotification(
-          `${student.first_name} ${student.last_name}`,
-          student.university_email,
-          "CONTRACT_GENERATED",
-          "",
-        );
-      } catch (err) {
-        console.error(err);
-      }
+      await supabase
+        .from("scholarship_selections")
+        .update({ status: "CONTRACT_GENERATED" })
+        .eq("id", selection.id);
+      await sendNotification(
+        `${student.first_name} ${student.last_name}`,
+        student.university_email,
+        "CONTRACT_GENERATED",
+        "",
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["scholars"]);
@@ -207,6 +189,102 @@ const ScholarsList = () => {
     window.open(data.signedUrl, "_blank");
   };
 
+  const renderActions = (item) => (
+    <div className="flex justify-end gap-2 items-center">
+      {item.status === "DOCS_UPLOADED" && (
+        <>
+          <button
+            onClick={() =>
+              statusMutation.mutate({
+                id: item.id,
+                newStatus: "CHANGES_REQUESTED",
+                student: item.students,
+                reason: "Doc. ilegible",
+              })
+            }
+            className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+          >
+            <XCircle size={22} />
+          </button>
+          <button
+            onClick={() =>
+              statusMutation.mutate({
+                id: item.id,
+                newStatus: "APPROVED",
+                student: item.students,
+              })
+            }
+            className="p-2 text-green-500 hover:bg-green-50 rounded-full transition-colors"
+          >
+            <CheckCircle size={22} />
+          </button>
+        </>
+      )}
+      {item.status === "APPROVED" && (
+        <button
+          onClick={() =>
+            generateContractMutation.mutate({
+              selection: item,
+              student: item.students,
+            })
+          }
+          className="bg-brand-blue text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-blue-800 transition-transform active:scale-95"
+        >
+          <FileText size={16} /> Generar Contrato
+        </button>
+      )}
+      {item.status === "CONTRACT_UPLOADED" && (
+        <>
+          <button
+            onClick={() =>
+              statusMutation.mutate({
+                id: item.id,
+                newStatus: "CONTRACT_REJECTED",
+                student: item.students,
+                reason: "Firma inválida",
+              })
+            }
+            className="p-2 text-red-500"
+          >
+            <XCircle size={22} />
+          </button>
+          <button
+            onClick={() =>
+              statusMutation.mutate({
+                id: item.id,
+                newStatus: "READY_FOR_PAYMENT",
+                student: item.students,
+              })
+            }
+            className="p-2 text-green-500"
+          >
+            <CheckCircle size={22} />
+          </button>
+        </>
+      )}
+      {item.status === "READY_FOR_PAYMENT" && (
+        <button
+          onClick={() =>
+            statusMutation.mutate({
+              id: item.id,
+              newStatus: "PAID",
+              student: item.students,
+              scholarshipData: item,
+            })
+          }
+          className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-700 transition-transform active:scale-95"
+        >
+          <DollarSign size={16} /> Procesar Pago
+        </button>
+      )}
+      {item.status === "PAID" && (
+        <span className="text-xs text-green-600 font-black flex items-center gap-1">
+          <CheckCircle size={16} /> PAGADO
+        </span>
+      )}
+    </div>
+  );
+
   if (isLoading && !data)
     return (
       <div className="p-8">
@@ -215,30 +293,34 @@ const ScholarsList = () => {
     );
 
   return (
-    <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 animate-fade-in">
-      {/* Header con Filtros */}
-      <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-brand-blue">
-              Gestión de Becarios
-            </h3>
-            <p className="text-xs text-gray-500">
-              Mostrando {scholars?.length || 0} de {totalCount || 0} registros
-            </p>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header con Filtros Responsivos */}
+      <div className="bg-white shadow-sm rounded-xl border border-gray-100 p-4 lg:p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-xl font-black text-brand-blue uppercase italic tracking-tight">
+                Gestión de Becarios
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                Registros:{" "}
+                <span className="text-brand-blue font-bold">
+                  {totalCount || 0}
+                </span>
+              </p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full lg:w-auto">
-            {/* Buscador */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={16}
+                size={18}
               />
               <input
                 type="text"
-                placeholder="Nombre o ID..."
-                className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                placeholder="Buscar por nombre o ID..."
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all"
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -246,28 +328,24 @@ const ScholarsList = () => {
                 }}
               />
             </div>
-
-            {/* Filtro Estado */}
             <select
-              className="px-3 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-brand-blue/20"
+              className="px-4 py-3 bg-gray-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
             >
-              <option value="">Todos los estados</option>
-              <option value="DOCS_UPLOADED">Documentos Subidos</option>
+              <option value="">Todos los Estados</option>
+              <option value="DOCS_UPLOADED">Documentos Recibidos</option>
               <option value="APPROVED">Aprobados</option>
-              <option value="CONTRACT_GENERATED">Contrato Generado</option>
-              <option value="CONTRACT_UPLOADED">Contrato Firmado</option>
+              <option value="CONTRACT_GENERATED">Contrato por Firmar</option>
+              <option value="CONTRACT_UPLOADED">Firma Recibida</option>
               <option value="READY_FOR_PAYMENT">Listo para Pago</option>
               <option value="PAID">Pagados</option>
             </select>
-
-            {/* Filtro Carrera */}
             <select
-              className="px-3 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-brand-blue/20"
+              className="px-4 py-3 bg-gray-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium"
               value={careerFilter}
               onChange={(e) => {
                 setCareerFilter(e.target.value);
@@ -285,42 +363,114 @@ const ScholarsList = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Vista de Tarjetas (Mobile) */}
+      <div className="grid grid-cols-1 gap-4 lg:hidden">
+        {scholars?.map((item) => (
+          <div
+            key={item.id}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4"
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-blue-50 text-brand-blue rounded-full flex items-center justify-center font-bold">
+                  {item.students?.first_name[0]}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 leading-none">
+                    {item.students?.first_name} {item.students?.last_name}
+                  </h4>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    {item.students?.national_id}
+                  </span>
+                </div>
+              </div>
+              <span
+                className={`px-2 py-1 text-[9px] font-black rounded-full border ${item.status === "PAID" ? "bg-green-100 text-green-700 border-green-200" : "bg-blue-100 text-blue-700 border-blue-200"}`}
+              >
+                {item.status?.replace(/_/g, " ")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="bg-gray-50 p-2 rounded-lg">
+                <p className="text-gray-400 font-bold uppercase mb-1 flex items-center gap-1">
+                  <BookOpen size={10} /> Carrera
+                </p>
+                <p className="text-gray-700 font-semibold truncate">
+                  {item.careers?.name}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-2 rounded-lg">
+                <p className="text-gray-400 font-bold uppercase mb-1 flex items-center gap-1">
+                  <FileText size={10} /> Documentos
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {item.documents?.map((doc) => (
+                    <button
+                      key={doc.id}
+                      onClick={() => handleOpenDocument(doc.file_path)}
+                      className="text-brand-blue hover:underline"
+                    >
+                      <Eye size={12} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-50">
+              {processingId === item.id ? (
+                <Loader2 className="animate-spin mx-auto text-brand-blue" />
+              ) : (
+                renderActions(item)
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Vista de Tabla (Desktop) */}
+      <div className="hidden lg:block bg-white shadow-lg rounded-2xl overflow-hidden border border-gray-100">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Estudiante
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Carrera
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Documentos
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Estado
               </th>
-              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100">
             {scholars?.map((item) => (
               <tr
                 key={item.id}
-                className="hover:bg-blue-50/30 transition-colors"
+                className="hover:bg-blue-50/20 transition-colors"
               >
                 <td className="px-6 py-4">
-                  <div className="text-sm font-semibold text-gray-900">
-                    {item.students?.first_name} {item.students?.last_name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {item.students?.national_id}
+                  <div className="flex items-center gap-3">
+                    <User className="text-gray-300" size={18} />
+                    <div>
+                      <div className="text-sm font-bold text-gray-900">
+                        {item.students?.first_name} {item.students?.last_name}
+                      </div>
+                      <div className="text-[10px] font-mono text-gray-400">
+                        {item.students?.national_id}
+                      </div>
+                    </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-xs font-medium text-gray-600">
+                <td className="px-6 py-4 text-xs font-bold text-gray-600 uppercase">
                   {item.careers?.name}
                 </td>
                 <td className="px-6 py-4">
@@ -329,160 +479,59 @@ const ScholarsList = () => {
                       <button
                         key={doc.id}
                         onClick={() => handleOpenDocument(doc.file_path)}
-                        className="text-blue-600 flex items-center gap-1 text-[10px] hover:underline font-medium"
+                        className="text-brand-blue flex items-center gap-1 text-[10px] hover:underline font-bold"
                       >
-                        <Eye size={10} /> {doc.document_type.replace(/_/g, " ")}
+                        <Eye size={12} /> {doc.document_type.replace(/_/g, " ")}
                       </button>
                     ))}
                   </div>
                 </td>
                 <td className="px-6 py-4">
                   <span
-                    className={`px-2.5 py-0.5 inline-flex text-[10px] leading-5 font-bold rounded-full border ${
-                      item.status === "PAID"
-                        ? "bg-green-100 text-green-800 border-green-200"
-                        : "bg-blue-100 text-blue-800 border-blue-200"
-                    }`}
+                    className={`px-3 py-1 inline-flex text-[10px] font-black rounded-full border ${item.status === "PAID" ? "bg-green-100 text-green-800 border-green-200" : "bg-blue-100 text-blue-800 border-blue-200"}`}
                   >
                     {item.status?.replace(/_/g, " ")}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-6 py-4">
                   {processingId === item.id ? (
-                    <Loader2
-                      className="animate-spin ml-auto text-brand-blue"
-                      size={20}
-                    />
+                    <Loader2 className="animate-spin ml-auto text-brand-blue" />
                   ) : (
-                    <div className="flex justify-end gap-2 items-center">
-                      {item.status?.toUpperCase() === "DOCS_UPLOADED" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              statusMutation.mutate({
-                                id: item.id,
-                                newStatus: "CHANGES_REQUESTED",
-                                student: item.students,
-                                reason: "Doc. ilegible",
-                              })
-                            }
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                            title="Rechazar"
-                          >
-                            <XCircle size={20} />
-                          </button>
-                          <button
-                            onClick={() =>
-                              statusMutation.mutate({
-                                id: item.id,
-                                newStatus: "APPROVED",
-                                student: item.students,
-                              })
-                            }
-                            className="p-1 text-green-500 hover:bg-green-50 rounded"
-                            title="Aprobar"
-                          >
-                            <CheckCircle size={20} />
-                          </button>
-                        </>
-                      )}
-                      {item.status?.toUpperCase() === "APPROVED" && (
-                        <button
-                          onClick={() =>
-                            generateContractMutation.mutate({
-                              selection: item,
-                              student: item.students,
-                            })
-                          }
-                          className="bg-brand-blue text-white px-3 py-1.5 rounded-md text-xs flex items-center gap-1 hover:bg-blue-800"
-                        >
-                          <FileText size={14} /> Contrato
-                        </button>
-                      )}
-                      {item.status?.toUpperCase() === "CONTRACT_UPLOADED" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              statusMutation.mutate({
-                                id: item.id,
-                                newStatus: "CONTRACT_REJECTED",
-                                student: item.students,
-                                reason: "Firma inválida",
-                              })
-                            }
-                            className="p-1 text-red-500"
-                            title="Rechazar Contrato"
-                          >
-                            <XCircle size={20} />
-                          </button>
-                          <button
-                            onClick={() =>
-                              statusMutation.mutate({
-                                id: item.id,
-                                newStatus: "READY_FOR_PAYMENT",
-                                student: item.students,
-                              })
-                            }
-                            className="p-1 text-green-500"
-                            title="Validar Contrato"
-                          >
-                            <CheckCircle size={20} />
-                          </button>
-                        </>
-                      )}
-                      {item.status?.toUpperCase() === "READY_FOR_PAYMENT" && (
-                        <button
-                          onClick={() =>
-                            statusMutation.mutate({
-                              id: item.id,
-                              newStatus: "PAID",
-                              student: item.students,
-                              scholarshipData: item,
-                            })
-                          }
-                          className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs flex items-center gap-1 hover:bg-green-700"
-                        >
-                          <DollarSign size={14} /> Pagar
-                        </button>
-                      )}
-                      {item.status?.toUpperCase() === "PAID" && (
-                        <span className="text-xs text-green-600 font-bold flex items-center gap-1">
-                          <CheckCircle size={14} /> Pagado
-                        </span>
-                      )}
-                    </div>
+                    renderActions(item)
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
 
-        {/* Paginación */}
-        <div className="px-6 py-4 bg-gray-50 border-t flex items-center justify-between">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-white border rounded shadow-sm disabled:opacity-50 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <ChevronLeft size={16} /> Anterior
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-500">Página</span>
-            <span className="px-3 py-1 bg-brand-blue text-white rounded-md text-sm font-bold">
-              {page + 1}
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              if (scholars?.length === ITEMS_PER_PAGE) setPage((p) => p + 1);
-            }}
-            disabled={!scholars || scholars.length < ITEMS_PER_PAGE}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-white border rounded shadow-sm disabled:opacity-50 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Siguiente <ChevronRight size={16} />
-          </button>
+      {/* Paginación Responsiva */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <button
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm disabled:opacity-30 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+        >
+          <ChevronLeft size={18} /> Anterior
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-tighter">
+            Página
+          </span>
+          <span className="px-4 py-2 bg-brand-blue text-white rounded-xl text-sm font-black shadow-md shadow-blue-200">
+            {page + 1}
+          </span>
         </div>
+        <button
+          onClick={() => {
+            if (scholars?.length === ITEMS_PER_PAGE) setPage((p) => p + 1);
+          }}
+          disabled={!scholars || scholars.length < ITEMS_PER_PAGE}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm disabled:opacity-30 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+        >
+          Siguiente <ChevronRight size={18} />
+        </button>
       </div>
     </div>
   );
