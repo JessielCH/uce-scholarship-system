@@ -1,7 +1,16 @@
 import React from "react";
-import { Users, BookOpen, Calendar } from "lucide-react";
+import {
+  Users,
+  BookOpen,
+  Calendar,
+  FileText,
+  Download,
+  AlertCircle,
+} from "lucide-react";
+import { supabase } from "../../../services/supabaseClient";
 import ActionButtons from "../ActionButtons";
 import Badge from "../../atoms/Badge";
+import Button from "../../atoms/Button";
 
 /**
  * MOLECULE: ScholarshipCard
@@ -61,6 +70,77 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
           </span>
         </div>
       </div>
+
+      {/* Documents Section - AUDITORÍA Y RECLAMOS */}
+      {item.documents && item.documents.length > 0 && (
+        <div className="mb-5 pb-5 border-b border-gray-200">
+          <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <FileText size={16} className="text-brand-blue" />
+            Documentos ({item.documents.length})
+          </h4>
+          <div className="space-y-2">
+            {item.documents.map((doc) => {
+              const docTypeLabel =
+                {
+                  BANK_ACCOUNT_VERIFICATION: "🏦 Verificación Bancaria",
+                  CONTRACT_UNSIGNED: "📝 Contrato sin Firmar",
+                  CONTRACT_SIGNED: "✅ Contrato Firmado",
+                  PAYMENT_RECEIPT: "💰 Recibo de Pago",
+                  IDENTITY_VERIFICATION: "🆔 Cédula de Identidad",
+                }[doc.document_type] || doc.document_type;
+
+              return (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between bg-white rounded p-2 border border-gray-100 hover:border-brand-blue transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 truncate">
+                      {docTypeLabel}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      v{doc.version} •{" "}
+                      {new Date(doc.created_at).toLocaleDateString("es-EC")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Download}
+                    onClick={async () => {
+                      try {
+                        const { data: urlData, error } = await supabase.storage
+                          .from("scholarship-docs")
+                          .createSignedUrl(doc.file_path, 60);
+                        if (error) throw error;
+                        window.open(urlData.signedUrl, "_blank");
+                      } catch (e) {
+                        console.error("Error al descargar:", e);
+                        alert("No se pudo descargar el documento");
+                      }
+                    }}
+                    className="ml-2 flex-shrink-0"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* No Documents Warning - CRITICAL FOR AUDIT TRAIL */}
+      {(!item.documents || item.documents.length === 0) && (
+        <div className="mb-5 pb-5 border-b border-yellow-200 flex items-start gap-2 bg-yellow-50 p-3 rounded">
+          <AlertCircle
+            size={16}
+            className="text-yellow-600 flex-shrink-0 mt-0.5"
+          />
+          <div className="text-xs text-yellow-700">
+            <p className="font-semibold">Sin documentos cargados</p>
+            <p>Estudiante no ha enviado documentación requerida</p>
+          </div>
+        </div>
+      )}
 
       {/* Footer: Acciones */}
       <div className="flex justify-end">

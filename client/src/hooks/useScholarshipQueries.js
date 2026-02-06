@@ -25,7 +25,26 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
         .limit(1)
         .maybeSingle();
 
-      return { student, scholarship: selection };
+      if (selError) throw selError;
+
+      // Fetch documents separately if not included
+      let documents = selection?.documents || [];
+      if (!documents || documents.length === 0) {
+        const { data: docsData, error: docsError } = await supabase
+          .from("documents")
+          .select("*")
+          .eq("selection_id", selection?.id);
+
+        if (docsError) {
+          console.error("Error fetching documents:", docsError);
+        }
+        documents = docsData || [];
+      }
+
+      return {
+        student,
+        scholarship: selection ? { ...selection, documents } : null,
+      };
     },
     enabled: enabled && !!userEmail,
     staleTime: 1000 * 60 * 5,

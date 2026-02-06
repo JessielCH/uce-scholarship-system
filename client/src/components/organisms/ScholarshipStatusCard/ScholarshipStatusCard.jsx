@@ -12,6 +12,7 @@ import {
   Search,
   XCircle,
 } from "lucide-react";
+import { supabase } from "../../../services/supabaseClient";
 import Button from "../../atoms/Button";
 import StatusBadge from "../../molecules/StatusBadge";
 
@@ -175,6 +176,96 @@ const ScholarshipStatusCard = ({
             </p>
             <p className="text-lg font-bold text-gray-900">
               ****{scholarship.bank_account_number.slice(-4)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Documents Section */}
+      <div className="pt-6 border-t border-gray-100">
+        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <FileText className="text-brand-blue" size={20} />
+          Documentos Subidos
+          {scholarship?.documents && scholarship.documents.length > 0 && (
+            <span className="ml-2 text-sm font-normal bg-blue-100 text-brand-blue px-2 py-1 rounded-full">
+              {scholarship.documents.length}
+            </span>
+          )}
+        </h3>
+
+        {scholarship?.documents && scholarship.documents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {scholarship.documents.map((doc) => {
+              const docTypeLabel =
+                {
+                  BANK_ACCOUNT_VERIFICATION: "Verificación Bancaria",
+                  CONTRACT_UNSIGNED: "Contrato sin Firmar",
+                  CONTRACT_SIGNED: "Contrato Firmado",
+                  PAYMENT_RECEIPT: "Recibo de Pago",
+                  IDENTITY_VERIFICATION: "Cédula de Identidad",
+                }[doc.document_type] || doc.document_type;
+
+              return (
+                <div
+                  key={doc.id}
+                  className="flex flex-col bg-gradient-to-br from-blue-50 to-gray-50 p-4 rounded-lg border border-blue-100 hover:border-brand-blue transition-all hover:shadow-md"
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <FileText
+                      className="text-brand-blue flex-shrink-0 mt-1"
+                      size={20}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">
+                        {docTypeLabel}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap">
+                        <span className="bg-white px-2 py-1 rounded border border-gray-200">
+                          v{doc.version}
+                        </span>
+                        <span>
+                          {new Date(doc.created_at).toLocaleDateString(
+                            "es-ES",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Download}
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { data: urlData, error } = await supabase.storage
+                          .from("scholarship-docs")
+                          .createSignedUrl(doc.file_path, 60);
+                        if (error) throw error;
+                        window.open(urlData.signedUrl, "_blank");
+                      } catch (e) {
+                        console.error("Error al descargar:", e);
+                        alert("No se pudo descargar el documento");
+                      }
+                    }}
+                  >
+                    Descargar
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+            <AlertCircle className="text-yellow-600 mx-auto mb-2" size={24} />
+            <p className="text-sm text-yellow-800">
+              Aún no hay documentos subidos. Empieza cargando tu verificación
+              bancaria.
             </p>
           </div>
         )}
