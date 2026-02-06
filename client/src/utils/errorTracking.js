@@ -7,7 +7,7 @@
 import { supabase } from "../services/supabaseClient";
 import { logger } from "./logger";
 
-const isDevelopment = import.meta.env.MODE === 'development';
+const isDevelopment = import.meta.env.MODE === "development";
 
 /**
  * Registra error en base de datos
@@ -53,7 +53,13 @@ export const trackError = async (context, error, metadata = {}) => {
 /**
  * Captura errores de fetch/requests
  */
-export const trackFetchError = async (url, method, statusCode, error, context) => {
+export const trackFetchError = async (
+  url,
+  method,
+  statusCode,
+  error,
+  context,
+) => {
   const errorId = await trackError(context, error, {
     type: "FETCH_ERROR",
     url,

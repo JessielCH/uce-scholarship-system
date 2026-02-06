@@ -51,61 +51,102 @@
 
 **Objetivo:** Sistema centralizado de logs, error tracking y debugging sin adivinanzas.
 
-### 17.1 Logger Centralizado
+### 17.1 Logger Centralizado ✅
 
-Crear `src/utils/logger.ts`:
+✅ **Completado:**
 
-```typescript
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'AUDIT';
+- ✅ `client/src/utils/logger.js` (210 LOC)
+- ✅ `server/utils/logger.js` (130 LOC)
 
-export const logger = {
-  debug: (context: string, message: string, data?: Record<string, any>) => {...},
-  info: (context: string, message: string, data?: Record<string, any>) => {...},
-  warn: (context: string, message: string, data?: Record<string, any>) => {...},
-  error: (context: string, message: string, error?: Error, data?: Record<string, any>) => {...},
-  audit: (action: string, entity: string, data: Record<string, any>) => {...},
-};
-```
-
-**Características:**
+**Características implementadas:**
 
 - ✅ Timestamps ISO
 - ✅ Context (componente/función)
 - ✅ Niveles: DEBUG, INFO, WARN, ERROR, AUDIT
 - ✅ Metadata estructurada
 - ✅ Flag para dev/prod
+- ✅ Performance timing helpers (`perf()`)
+- ✅ Color console output (desarrollo)
 
-### 17.2 Error Boundary & Error Tracking
+### 17.2 Error Boundary & Error Tracking ✅
 
-- [ ] Crear `ErrorBoundary.jsx` component
-- [ ] Implementar error tracking (Sentry o custom)
-- [ ] Toast notifications para errores
-- [ ] Log automático de stack traces
+✅ **Completado:**
 
-### 17.3 Performance Monitoring
+- ✅ `client/src/components/shared/ErrorBoundary.jsx` (120 LOC)
+  - Error ID generation: `ERR_${timestamp}_${random}`
+  - getDerivedStateFromError() + componentDidCatch()
+  - Structured error logging with stack traces
+  - Beautiful error UI (dev mode shows details, prod mode user-friendly)
+  - Reset button navigation
+- ✅ `client/src/utils/errorTracking.js` (90 LOC)
+  - `trackError()` - Registra errores en audit_logs
+  - `trackFetchError()` - Captura errores de fetch
+  - `trackQueryError()` - Captura errores de React Query
+  - Almacenamiento en BD para análisis posterior
 
-- [ ] Medir tiempos de carga de queries
-- [ ] Detectar memory leaks
-- [ ] Monitor de renders (React DevTools)
-- [ ] Web Vitals: LCP, FID, CLS
+- ✅ Integración en `App.jsx`
+  - ErrorBoundary envuelve toda la aplicación
+  - Captura React errors antes de crashear
 
-### 17.4 Audit Logs Mejorados
+### 17.3 Performance Monitoring ✅
 
-- [ ] Tabla `audit_logs` en Supabase (crear si no existe)
-- [ ] Logging de acciones: LOGIN, UPLOAD, UPDATE_STATUS, etc.
-- [ ] Incluir: usuario, timestamp, acción, resultado
-- [ ] Dashboard admin para ver audit logs
+✅ **Completado:**
 
-### 17.5 Request/Response Logging (Server)
+- ✅ `client/src/hooks/usePerformance.js` (120 LOC)
+  - `usePerformance()` - Mide tiempos de renderizado
+  - `useQueryPerformance()` - Monitorea queries
+  - `useWebVitals()` - Mide Web Vitals (LCP, FID, CLS)
+  - `useMemoryProfile()` - Memory snapshots en desarrollo
+  - Threshold-based logging (1000ms por defecto)
 
-Actualizar `server/index.js`:
+### 17.4 Audit Logs Mejorados ✅
 
-- [ ] Middleware de logging para cada request
-- [ ] Log de tiempo de respuesta
-- [ ] Log de errores 4xx y 5xx
-- [ ] Log de payloads (sin contraseñas)
+✅ **Completado:**
 
-**Resultado esperado:** Sistema de observabilidad funcionando, poder debuggear sin `console.log` aleatorios.
+- ✅ `client/src/pages/admin/AuditLogs.jsx` (280 LOC)
+  - Tabla completa de audit_logs desde Supabase
+  - Filtrado por acción, entidad, fecha, usuario
+  - Paginación (20 registros por página)
+  - Exportación a CSV
+  - Color-coding por acción tipo
+  - Búsqueda en tiempo real con debouncing
+  - Timestamps formateados
+  - Detalles JSON visualizables
+
+- ✅ Rutas integradas:
+  - `/admin/audit-logs` - Acceso solo ADMIN
+  - Enlace en AdminLayout (pendiente agregar a nav)
+
+**Acciones auditadas:**
+
+- ✅ CREATE_STAFF
+- ✅ UPDATE_STAFF
+- ✅ LOGOUT
+- ✅ UPLOAD_EXCEL
+- ✅ ERROR_TRACKED
+- ✅ Todas las requests (server)
+
+### 17.5 Request/Response Logging (Server) ✅
+
+✅ **Completado:**
+
+- ✅ `server/middleware/requestLogger.js` (140 LOC)
+  - `requestLogger()` - Middleware main
+    - Request logging (method, path, query, IP, user-agent)
+    - Response logging (status, duration)
+    - Unique request ID generation: `REQ_${timestamp}_${random}`
+  - `errorHandler()` - Error handling middleware
+    - Error logging con stack traces
+    - Structured error response
+    - Error ID generation
+  - `auditLog()` - Audit logging middleware
+    - Wrapper para acciones críticas
+    - Registra userName, acción, entidad
+  - `performanceMonitor()` - Threshold-based perf logging
+    - Logs slow requests (>500ms)
+    - High-resolution timing (hrtime)
+
+**Resultado esperado:** ✅ Sistema de observabilidad funcionando full, poder debuggear sin `console.log` aleatorios.
 
 ---
 
@@ -205,17 +246,20 @@ Revisar en `BankUploadModal`, `ContractUploadModal`:
 
 ### Sprint 16
 
-- [ ] 0 `console.log()` o todos usando `logger()`
-- [ ] `npm run lint` sin warnings
-- [ ] Documentación actualizada
-- [ ] Tests de performance OK
+- ✅ 0 `console.log()` o todos usando `logger()`
+- ✅ `npm run lint` sin warnings
+- ✅ Documentación actualizada
+- ✅ Tests de performance OK
 
-### Sprint 17
+### Sprint 17 ✅ COMPLETADO
 
-- [ ] Logger centralizado funcionando
-- [ ] ErrorBoundary implementado
-- [ ] Audit logs en Supabase
-- [ ] Dashboard admin muestra audit logs
+- ✅ Logger centralizado funcionando (client + server)
+- ✅ ErrorBoundary implementado e integrado en App.jsx
+- ✅ Error tracking service con BD storage
+- ✅ Performance monitoring hooks (render, query, Web Vitals, memory)
+- ✅ Audit logs dashboard con filtrado, paginación, export CSV
+- ✅ Request/Response logging middleware para server
+- ✅ 0 compilation errors verified
 
 ### Sprint 18
 
