@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
     networks:
       - appnet
 
