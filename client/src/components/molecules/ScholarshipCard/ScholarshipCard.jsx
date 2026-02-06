@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Users,
   BookOpen,
@@ -18,6 +18,45 @@ import Button from "../../atoms/Button";
  * Reemplaza ScholarshipTableRow para mejor responsividad mobile
  */
 const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
+  const [documents, setDocuments] = useState(item?.documents || []);
+
+  // Actualizar documentos cuando cambian los props
+  useEffect(() => {
+    setDocuments(item?.documents || []);
+  }, [item?.documents]);
+
+  // Real-time para documentos de esta tarjeta específica
+  useEffect(() => {
+    if (!item?.id) return;
+
+    const docsChannel = supabase
+      .channel(`card-docs-${item.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documents",
+          filter: `selection_id=eq.${item.id}`,
+        },
+        () => {
+          // Cuando hay cambio, refrescar documentos
+          supabase
+            .from("documents")
+            .select("*")
+            .eq("selection_id", item.id)
+            .then(({ data }) => {
+              if (data) setDocuments(data);
+            });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(docsChannel);
+    };
+  }, [item?.id]);
+
   // Guard clause: evitar errores si item es undefined
   if (!item || !item.students) {
     return null;
@@ -95,14 +134,14 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
       </div>
 
       {/* Documents Section - AUDITORÍA Y RECLAMOS */}
-      {item.documents && item.documents.length > 0 && (
+      {documents && documents.length > 0 && (
         <div className="mb-5 pb-5 border-b border-gray-200">
           <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
             <FileText size={16} className="text-brand-blue" />
-            Documentos ({item.documents.length})
+            Documentos ({documents.length})
           </h4>
           <div className="space-y-2">
-            {item.documents.map((doc) => {
+            {documents.map((doc) => {
               const docTypeLabel =
                 {
                   BANK_ACCOUNT_VERIFICATION: "🏦 Verificación Bancaria",
@@ -152,7 +191,7 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
       )}
 
       {/* No Documents Warning - CRITICAL FOR AUDIT TRAIL */}
-      {(!item.documents || item.documents.length === 0) && (
+      {(!documents || documents.length === 0) && (
         <div className="mb-5 pb-5 border-b border-yellow-200 flex items-start gap-2 bg-yellow-50 p-3 rounded">
           <AlertCircle
             size={16}

@@ -63,19 +63,8 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
 
       if (selError) throw selError;
 
-      // Fetch documents separately if not included
+      // Get documents array - either from relation or empty
       let documents = selection?.documents || [];
-      if (!documents || documents.length === 0) {
-        const { data: docsData, error: docsError } = await supabase
-          .from("documents")
-          .select("*")
-          .eq("selection_id", selection?.id);
-
-        if (docsError) {
-          console.error("Error fetching documents:", docsError);
-        }
-        documents = docsData || [];
-      }
 
       return {
         student,

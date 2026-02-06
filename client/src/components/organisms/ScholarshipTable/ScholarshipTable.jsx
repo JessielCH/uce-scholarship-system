@@ -84,10 +84,11 @@ const ScholarshipTable = () => {
     },
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["scholars", page, debouncedSearch, statusFilter, careerFilter],
     queryFn: fetchScholars,
     placeholderData: (previousData) => previousData,
+    refetchInterval: 3000, // Refetch cada 3 segundos
   });
 
   useEffect(() => {
@@ -96,7 +97,10 @@ const ScholarshipTable = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "scholarship_selections" },
-        () => queryClient.invalidateQueries({ queryKey: ["scholars"] }),
+        (payload) => {
+          console.log("📊 Real-time scholarship_selections:", payload);
+          queryClient.invalidateQueries({ queryKey: ["scholars"] });
+        },
       )
       .subscribe();
 
@@ -106,9 +110,17 @@ const ScholarshipTable = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "documents" },
-        () => queryClient.invalidateQueries({ queryKey: ["scholars"] }),
+        (payload) => {
+          console.log("📄 Real-time documents:", payload);
+          queryClient.invalidateQueries({
+            queryKey: ["scholars"],
+            exact: false,
+          });
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📄 Documents channel status:", status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

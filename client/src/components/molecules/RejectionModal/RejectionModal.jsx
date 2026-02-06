@@ -31,7 +31,9 @@ const RejectionModal = ({ isOpen, onClose, onConfirm, documentType }) => {
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-6 w-6 text-red-600" />
-            <h2 className="text-xl font-bold text-gray-900">Rechazar Documento</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              Rechazar Documento
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -44,7 +46,8 @@ const RejectionModal = ({ isOpen, onClose, onConfirm, documentType }) => {
         {/* Body */}
         <div className="mb-6">
           <p className="text-sm text-gray-600 mb-4">
-            Especifica por qué estás rechazando este documento. El estudiante recibirá la notificación.
+            Especifica por qué estás rechazando este documento. El estudiante
+            recibirá la notificación.
           </p>
           <textarea
             value={reason}
