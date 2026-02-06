@@ -146,26 +146,70 @@ async function runIngestion() {
     let selectedCount = 0;
 
     for (const student of processedStudents) {
-      // C.1 Upsert Student (Permanent Record)
-      const { data: studentDB, error: stuError } = await supabase
+      // C.1 Check if student exists by email
+      const { data: existingStudent, error: checkError } = await supabase
         .from("students")
-        .upsert(
-          {
-            national_id: String(student.national_id), // Ensure string
+        .select("id, university_email, first_name, last_name, national_id")
+        .eq("university_email", student.university_email)
+        .maybeSingle();
+
+      let studentDB = existingStudent;
+      let stuError = null;
+
+      // Only insert if student doesn't exist - NEVER UPDATE
+      if (!existingStudent) {
+        const { data, error } = await supabase
+          .from("students")
+          .insert({
+            national_id: String(student.national_id),
             university_email: student.university_email,
             first_name: student.first_name,
             last_name: student.last_name,
-          },
-          { onConflict: "university_email" },
-        ) // Unique constraint
-        .select()
-        .single();
+          })
+          .select()
+          .single();
+        studentDB = data;
+        stuError = error;
 
-      if (stuError) {
-        logger.error("Ingestion", `Error insertando estudiante`, stuError, {
+        if (stuError) {
+          // Handle duplicate key error (race condition)
+          if (stuError.code === "23505" || stuError.message?.includes("duplicate key")) {
+            logger.warn("Ingestion", `Email duplicado detectado (race condition), buscando estudiante`, {
+              email: student.university_email,
+            });
+
+            const { data: duplicateStudent } = await supabase
+              .from("students")
+              .select("id")
+              .eq("university_email", student.university_email)
+              .maybeSingle();
+
+            if (duplicateStudent) {
+              studentDB = duplicateStudent;
+              stuError = null;
+            } else {
+              logger.error("Ingestion", `No se pudo resolver email duplicado`, stuError, {
+                email: student.university_email,
+              });
+              continue;
+            }
+          } else {
+            logger.error("Ingestion", `Error insertando estudiante`, stuError, {
+              email: student.university_email,
+            });
+            continue;
+          }
+        } else {
+          logger.debug("Ingestion", `Estudiante nuevo creado`, {
+            email: student.university_email,
+            id: studentDB.id,
+          });
+        }
+      } else {
+        logger.debug("Ingestion", `Estudiante existente reutilizado`, {
           email: student.university_email,
+          id: existingStudent.id,
         });
-        continue;
       }
 
       // C.2 Create Scholarship Selection for ALL students (selected or excluded)
