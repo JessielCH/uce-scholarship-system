@@ -1,10 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFormik } from "formik";
-import * as Yup from "yup";
-import { AlertCircle, Lock, Mail, Loader2 } from "lucide-react";
+import { z } from "zod"; // [SPRINT 4] Zod como fuente de verdad
+import { AlertCircle, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
 import { useAuth } from "../context/AuthContext";
+
+// --- ESQUEMAS DE VALIDACIÓN CON ZOD ---
+const loginSchema = z.object({
+  email: z
+    .string()
+    .email("Email inválido")
+    .endsWith("@uce.edu.ec", "Debe ser correo institucional @uce.edu.ec"),
+  password: z.string().min(6, "Mínimo 6 caracteres"),
+});
+
+const signUpSchema = loginSchema
+  .extend({
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,7 +31,6 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // --- LÓGICA DE REDIRECCIÓN CON AUDITORÍA ---
   useEffect(() => {
     if (session) {
       checkUserRoleAndRedirect(session.user);
@@ -22,13 +39,8 @@ const Login = () => {
 
   const checkUserRoleAndRedirect = async (user) => {
     setVerifying(true);
-
-    console.group("🔐 [AUDIT LOG] Verificación de Rol y Redirección");
-    console.log(`Usuario autenticado: ${user.email}`);
-    console.log(`ID de Auth: ${user.id}`);
-
+    console.group("🔐 [AUDIT LOG] Verificación de Rol");
     try {
-      // 1. ¿Es STAFF o ADMIN?
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -36,15 +48,10 @@ const Login = () => {
         .maybeSingle();
 
       if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
-        console.log(
-          `✅ Resultado: Acceso Administrativo detectado (${profile.role})`,
-        );
-        console.groupEnd();
         navigate("/admin", { replace: true });
         return;
       }
 
-      // 2. ¿Es ESTUDIANTE OFICIAL?
       const { data: studentRecord } = await supabase
         .from("students")
         .select("id")
@@ -52,25 +59,15 @@ const Login = () => {
         .maybeSingle();
 
       if (studentRecord) {
-        console.log("✅ Resultado: Acceso Estudiante detectado");
-        console.groupEnd();
         navigate("/dashboard", { replace: true });
       } else {
-        // 3. Si no es nada de lo anterior -> INVITADO
-        console.log(
-          "⚠️ Resultado: Usuario no encontrado en registros oficiales. Redirigiendo a INVITADO.",
-        );
-        console.groupEnd();
         navigate("/guest", { replace: true });
       }
     } catch (error) {
-      console.error(
-        "❌ [AUDIT LOG] Error crítico en la verificación de rol:",
-        error.message,
-      );
-      console.groupEnd();
+      console.error("❌ Error en redirección:", error.message);
       navigate("/guest", { replace: true });
     } finally {
+      console.groupEnd();
       setVerifying(false);
     }
   };
@@ -79,23 +76,23 @@ const Login = () => {
     initialValues: {
       email: "",
       password: "",
+      confirmPassword: "",
     },
-    validationSchema: Yup.object({
-      email: Yup.string()
-        .email("Email inválido")
-        .matches(/@uce\.edu\.ec$/, "Debe ser correo institucional @uce.edu.ec")
-        .required("Requerido"),
-      password: Yup.string()
-        .min(6, "Mínimo 6 caracteres")
-        .required("Requerido"),
-    }),
+    // [SPRINT 4] Validación manual usando Zod
+    validate: (values) => {
+      const schema = isSignUp ? signUpSchema : loginSchema;
+      const result = schema.safeParse(values);
+      if (result.success) return {};
+
+      const errors = {};
+      result.error.issues.forEach((issue) => {
+        errors[issue.path[0]] = issue.message;
+      });
+      return errors;
+    },
     onSubmit: async (values) => {
       setAuthError(null);
       const { email, password } = values;
-
-      console.group("🔑 [AUDIT LOG] Intento de Autenticación");
-      console.log(`Acción: ${isSignUp ? "SIGN_UP" : "SIGN_IN"}`);
-      console.log(`Correo: ${email}`);
 
       try {
         let result;
@@ -107,50 +104,30 @@ const Login = () => {
 
         if (result.error) throw result.error;
 
-        console.log("✅ [AUDIT LOG] Respuesta de Supabase Exitosa");
-        console.groupEnd();
-
         if (isSignUp && !result.data.session) {
-          setAuthError("Cuenta creada. Verifica tu correo.");
+          setAuthError(
+            "Cuenta creada. Por favor, verifica tu correo institucional.",
+          );
         }
       } catch (error) {
-        console.error(
-          "❌ [AUDIT LOG] Fallo en la autenticación:",
-          error.message,
+        setAuthError(
+          error.message.includes("Invalid login credentials")
+            ? "Credenciales inválidas."
+            : error.message,
         );
-        console.groupEnd();
-
-        if (error.message.includes("Invalid login credentials")) {
-          setAuthError("Credenciales inválidas.");
-        } else {
-          setAuthError(error.message);
-        }
       }
     },
   });
 
   const handleGoogleLogin = async () => {
     setVerifying(true);
-    console.group("🌐 [AUDIT LOG] Inicio de Sesión Externo (OAuth)");
-    console.log("Proveedor: Google");
-
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/login",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
+        options: { redirectTo: window.location.origin + "/login" },
       });
       if (error) throw error;
-      console.log("✅ [AUDIT LOG] Redirección a OAuth iniciada correctamente");
-      console.groupEnd();
     } catch (error) {
-      console.error("❌ [AUDIT LOG] Error en Google OAuth:", error.message);
-      console.groupEnd();
       alert("Error Google: " + error.message);
       setVerifying(false);
     }
@@ -158,15 +135,15 @@ const Login = () => {
 
   if (verifying) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-sans">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <Loader2 className="h-10 w-10 text-blue-800 animate-spin mb-4" />
-        <p className="text-gray-500 font-medium">Verificando credenciales...</p>
+        <p className="text-gray-500 font-medium">Verificando acceso...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in font-sans">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
         <h1 className="text-4xl font-extrabold text-blue-900 tracking-tight">
           Sistema de Becas
@@ -176,35 +153,20 @@ const Login = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-10 px-8 shadow-xl rounded-2xl border border-gray-100">
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full flex justify-center items-center gap-3 px-4 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all mb-4"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24">
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                fill="#4285F4"
+          {!isSignUp && (
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full flex justify-center items-center gap-3 px-4 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all mb-6"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/pjax/google.svg"
+                className="h-5 w-5"
+                alt="Google"
               />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="#34A853"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="#EA4335"
-              />
-            </svg>
-            Ingresar con Google
-          </button>
-
-          <p className="text-center text-xs text-gray-500 mb-6 px-2">
-            Invitados: Usen Google para acceder al Portal de Transparencia.
-          </p>
+              Ingresar con Google
+            </button>
+          )}
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
@@ -212,7 +174,9 @@ const Login = () => {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-white text-gray-400 font-medium">
-                O con Correo Institucional
+                {isSignUp
+                  ? "Registro de Estudiante"
+                  : "O con Correo Institucional"}
               </span>
             </div>
           </div>
@@ -223,14 +187,10 @@ const Login = () => {
                 Correo Institucional
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
+                <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 <input
-                  id="email"
-                  type="email"
                   {...formik.getFieldProps("email")}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-blue-800 sm:text-sm"
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-800 outline-none ${formik.touched.email && formik.errors.email ? "border-red-500" : "border-gray-300"}`}
                   placeholder="estudiante@uce.edu.ec"
                 />
               </div>
@@ -246,14 +206,11 @@ const Login = () => {
                 Contraseña
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
+                <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 <input
-                  id="password"
                   type="password"
                   {...formik.getFieldProps("password")}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-blue-800 sm:text-sm"
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-800 outline-none ${formik.touched.password && formik.errors.password ? "border-red-500" : "border-gray-300"}`}
                   placeholder="••••••"
                 />
               </div>
@@ -264,13 +221,37 @@ const Login = () => {
               )}
             </div>
 
+            {/* [SPRINT 4] DOBLE VERIFICACIÓN SOLO PARA ESTUDIANTES NUEVOS */}
+            {isSignUp && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Confirmar Contraseña
+                </label>
+                <div className="relative">
+                  <CheckCircle2 className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                  <input
+                    type="password"
+                    {...formik.getFieldProps("confirmPassword")}
+                    className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-800 outline-none ${formik.touched.confirmPassword && formik.errors.confirmPassword ? "border-red-500" : "border-gray-300"}`}
+                    placeholder="Repite tu contraseña"
+                  />
+                </div>
+                {formik.touched.confirmPassword &&
+                  formik.errors.confirmPassword && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">
+                      {formik.errors.confirmPassword}
+                    </p>
+                  )}
+              </div>
+            )}
+
             {authError && (
-              <div className="rounded-lg bg-red-50 p-4 border border-red-100">
+              <div
+                className={`rounded-lg p-4 border ${authError.includes("creada") ? "bg-green-50 border-green-100 text-green-800" : "bg-red-50 border-red-100 text-red-800"}`}
+              >
                 <div className="flex">
-                  <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                  <p className="text-sm font-medium text-red-800">
-                    {authError}
-                  </p>
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  <p className="text-sm font-medium">{authError}</p>
                 </div>
               </div>
             )}
@@ -278,7 +259,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={formik.isSubmitting}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-blue-900 hover:bg-blue-800 focus:outline-none transition-all"
+              className="w-full flex justify-center py-3 px-4 rounded-lg shadow-md text-sm font-bold text-white bg-blue-900 hover:bg-blue-800 transition-all disabled:opacity-50"
             >
               {formik.isSubmitting ? (
                 <Loader2 className="animate-spin h-5 w-5" />
@@ -295,12 +276,13 @@ const Login = () => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setAuthError(null);
+                formik.resetForm();
               }}
               className="text-sm font-medium text-blue-600 hover:text-blue-500"
             >
               {isSignUp
                 ? "¿Ya tienes cuenta? Inicia sesión"
-                : "¿Eres nuevo? Regístrate aquí"}
+                : "¿Eres nuevo estudiante? Regístrate aquí"}
             </button>
           </div>
         </div>
