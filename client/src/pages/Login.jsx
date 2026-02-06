@@ -5,6 +5,7 @@ import { z } from "zod"; // [SPRINT 4] Zod como fuente de verdad
 import { AlertCircle, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
 import { useAuth } from "../context/AuthContext";
+import { logger } from "../utils/logger";
 
 // --- ESQUEMAS DE VALIDACIÓN CON ZOD ---
 const loginSchema = z.object({
@@ -39,7 +40,9 @@ const Login = () => {
 
   const checkUserRoleAndRedirect = async (user) => {
     setVerifying(true);
-    console.group("🔐 [AUDIT LOG] Verificación de Rol");
+    logger.info("LoginFlow", "Verificando rol de usuario", {
+      email: user.email,
+    });
     try {
       const { data: profile } = await supabase
         .from("profiles")
@@ -48,6 +51,9 @@ const Login = () => {
         .maybeSingle();
 
       if (profile?.role === "ADMIN" || profile?.role === "STAFF") {
+        logger.debug("LoginFlow", "Admin/Staff detectado", {
+          role: profile.role,
+        });
         navigate("/admin", { replace: true });
         return;
       }
@@ -59,15 +65,21 @@ const Login = () => {
         .maybeSingle();
 
       if (studentRecord) {
+        logger.debug("LoginFlow", "Estudiante detectado", {
+          email: user.email,
+        });
         navigate("/dashboard", { replace: true });
       } else {
+        logger.debug(
+          "LoginFlow",
+          "Usuario sin perfil de estudiante, rediriendo a guest",
+        );
         navigate("/guest", { replace: true });
       }
     } catch (error) {
-      console.error("❌ Error en redirección:", error.message);
+      logger.error("LoginFlow", "Error en redirección", error);
       navigate("/guest", { replace: true });
     } finally {
-      console.groupEnd();
       setVerifying(false);
     }
   };

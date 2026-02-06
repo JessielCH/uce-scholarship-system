@@ -2,7 +2,7 @@
 import XLSX from "xlsx";
 import { supabase } from "../config/supabase.js";
 import { applySelectionLogic } from "../utils/selectionAlgorithm.js";
-import colors from "colors";
+import { logger } from "../utils/logger.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -13,13 +13,15 @@ const __dirname = path.dirname(__filename);
 const FILE_NAME = "../data/students_mock.xlsx"; // Ensure this file exists
 
 async function runIngestion() {
-  console.log("🚀 Starting Scholarship Ingestion Process...".blue.bold);
+  logger.info("Ingestion", "Iniciando proceso de ingesta de becas");
 
   // 1. SETUP ACADEMIC PERIOD
   // In a real app, this comes from UI. Here we hardcode or find active.
   const PERIOD_NAME = "2025-2026 Semestre 1";
 
-  console.log(`🔎 Checking Academic Period: ${PERIOD_NAME}...`.yellow);
+  logger.debug("Ingestion", "Buscando período académico", {
+    periodName: PERIOD_NAME,
+  });
   let { data: period, error: periodError } = await supabase
     .from("academic_periods")
     .select("id")
@@ -27,7 +29,9 @@ async function runIngestion() {
     .single();
 
   if (!period) {
-    console.log(`⚡ Creating new period...`.green);
+    logger.info("Ingestion", "Creando nuevo período académico", {
+      periodName: PERIOD_NAME,
+    });
     const { data: newPeriod } = await supabase
       .from("academic_periods")
       .insert({
@@ -44,12 +48,14 @@ async function runIngestion() {
 
   // 2. READ EXCEL
   const filePath = path.join(__dirname, FILE_NAME);
-  console.log(`📂 Reading file: ${filePath}`.cyan);
+  logger.info("Ingestion", "Leyendo archivo de datos", { filePath });
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-  console.log(`📊 Found ${rawData.length} rows. Parsing...`.cyan);
+  logger.info("Ingestion", "Datos cargados del Excel", {
+    rowCount: rawData.length,
+  });
 
   // 3. GROUP BY CAREER
   // Format required: Faculty -> Career -> Students
@@ -80,7 +86,10 @@ async function runIngestion() {
   // 4. PROCESS EACH CAREER
   for (const key of Object.keys(studentsByCareer)) {
     const [facultyName, careerName] = key.split(":::");
-    console.log(`\n⚙️  Processing: ${facultyName} - ${careerName}`.magenta);
+    logger.info("Ingestion", `Procesando carrera: ${careerName}`, {
+      faculty: facultyName,
+      studentCount: studentsByCareer[key].length,
+    });
 
     // A. Ensure Faculty & Career exist in DB (Find or Create)
     // (Simplified for brevity: In prod, cache these IDs to avoid N+1 queries)
@@ -136,10 +145,9 @@ async function runIngestion() {
         .single();
 
       if (stuError) {
-        console.error(
-          `❌ Error inserting student ${student.university_email}:`,
-          stuError.message,
-        );
+        logger.error("Ingestion", `Error insertando estudiante`, stuError, {
+          email: student.university_email,
+        });
         continue;
       }
 
@@ -167,13 +175,17 @@ async function runIngestion() {
           ); // Prevent duplicates
 
         if (!selError) selectedCount++;
-        else console.error(`❌ Error creating selection:`, selError.message);
+        else
+          logger.error("Ingestion", "Error creando selección", selError, {
+            studentId: studentDB.id,
+            carreerId: carData.id,
+          });
       }
     }
-    console.log(
-      `✅ Selected ${selectedCount} / ${studentsInCareer.length} students for ${careerName}`
-        .green,
-    );
+    logger.info("Ingestion", `Resumen de carrera: ${careerName}`, {
+      selected: selectedCount,
+      total: studentsInCareer.length,
+    });
   }
 
   // 5. AUDIT LOG
@@ -184,7 +196,10 @@ async function runIngestion() {
     details: { filename: FILE_NAME, timestamp: new Date() },
   });
 
-  console.log("\n🏁 Ingestion Complete.".blue.bold);
+  logger.info("Ingestion", "Proceso de ingesta completado exitosamente", {
+    periodId: PERIOD_ID,
+    periodName: PERIOD_NAME,
+  });
 }
 
 runIngestion();

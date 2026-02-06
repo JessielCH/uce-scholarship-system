@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { extractBankAccount } from "../../../utils/ocrLogic";
 import { supabase } from "../../../services/supabaseClient";
 import { useAuth } from "../../../context/AuthContext";
+import { logger } from "../../../utils/logger";
 import { Check, Loader2 } from "lucide-react";
 import ModalHeader from "../../molecules/ModalHeader";
 import FileUploadZone from "../../molecules/FileUploadZone";
@@ -106,7 +107,10 @@ const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
       onSuccess();
       onClose();
     } catch (error) {
-      console.error("Upload process error:", error);
+      logger.error("BankUploadModal", "Error en upload", error, {
+        fileName: file?.name,
+        selectionId,
+      });
       setError(error.message);
     } finally {
       setIsUploading(false);

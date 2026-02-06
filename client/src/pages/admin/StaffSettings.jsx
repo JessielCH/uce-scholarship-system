@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useAuth } from "../../context/AuthContext";
+import { logger } from "../../utils/logger";
 import {
   UserPlus,
   Save,
@@ -40,14 +41,11 @@ const StaffSettings = () => {
     onSubmit: async (values, { resetForm }) => {
       setStatus({ type: "", message: "" });
 
-      // [AUDIT LOG] Inicio de proceso
-      console.group("👤 [AUDIT LOG] Creación de Nuevo Usuario Staff");
-      console.log(`Ejecutado por Administrador: ${currentUser?.email}`);
-      console.log(`Payload:`, {
-        nombre: values.fullName,
+      logger.info("StaffSettings", "Creación de nuevo usuario staff", {
+        createdBy: currentUser?.email,
+        fullName: values.fullName,
         email: values.email,
-        rol: values.role,
-        timestamp: new Date().toISOString(),
+        role: values.role,
       });
 
       try {
@@ -69,9 +67,11 @@ const StaffSettings = () => {
           throw new Error(data.error || "Failed to communicate with server");
         }
 
-        console.log(
-          `✅ [AUDIT LOG] Usuario ${values.email} registrado en Auth y Profiles.`,
-        );
+        logger.audit("CREATE_STAFF", "users", {
+          email: values.email,
+          role: values.role,
+          createdBy: currentUser?.email,
+        });
 
         setStatus({
           type: "success",
@@ -79,13 +79,14 @@ const StaffSettings = () => {
         });
         resetForm();
       } catch (error) {
-        console.error(`❌ [AUDIT LOG] Error en creación:`, error.message);
+        logger.error("StaffSettings", "Error en creación de staff", error, {
+          email: values.email,
+          role: values.role,
+        });
         setStatus({
           type: "error",
           message: error.message || "An unexpected error occurred.",
         });
-      } finally {
-        console.groupEnd();
       }
     },
   });

@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist";
+import { logger } from "./logger";
 
 // --- CRITICAL FIX ---
 // Se utiliza unpkg para asegurar compatibilidad con la versión instalada.
@@ -10,12 +11,13 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLi
  * @returns {Promise<string|null>} - El número de cuenta encontrado o null.
  */
 export const extractBankAccount = async (file) => {
-  console.group("🔍 [AUDIT LOG] Proceso OCR: Certificado Bancario");
-  console.log(`Archivo: ${file.name}`);
-  console.log(`Tamaño: ${(file.size / 1024).toFixed(2)} KB`);
+  logger.info("OCRLogic", "Iniciando extracción de cuenta bancaria (OCR)", {
+    fileName: file.name,
+    fileSizeKB: (file.size / 1024).toFixed(2),
+  });
 
   try {
-    console.log(`Iniciando motor PDF.js v${pdfjsLib.version}`);
+    logger.debug("OCRLogic", `Motor PDF.js v${pdfjsLib.version}`);
 
     // 1. Convertir archivo a ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -23,7 +25,9 @@ export const extractBankAccount = async (file) => {
     // 2. Cargar documento PDF
     const loadingTask = pdfjsLib.getDocument(arrayBuffer);
     const pdf = await loadingTask.promise;
-    console.log(`Páginas detectadas: ${pdf.numPages}`);
+    logger.debug("OCRLogic", "Páginas detectadas en PDF", {
+      pageCount: pdf.numPages,
+    });
 
     let fullText = "";
 
@@ -34,10 +38,10 @@ export const extractBankAccount = async (file) => {
     // Unir todos los fragmentos de texto encontrados
     fullText = textContent.items.map((item) => item.str).join(" ");
 
-    // LOG DEL TEXTO EXTRAÍDO (Clave para auditoría técnica)
-    console.groupCollapsed("📄 Texto Bruto Extraído (OCR Raw Text)");
-    console.log(fullText);
-    console.groupEnd();
+    // Log de texto extraído para auditoría
+    logger.debug("OCRLogic", "Texto extraído del PDF", {
+      textLength: fullText.length,
+    });
 
     // 4. Búsqueda con REGEX Estricto
     // Busca: "Cta", "Cuenta", "Acct", etc., seguido de 9 a 12 dígitos.
@@ -47,36 +51,42 @@ export const extractBankAccount = async (file) => {
     const match = fullText.match(accountRegex);
 
     if (match && match[1]) {
-      console.log(`✅ [AUDIT] Cuenta encontrada (Regex Estricto): ${match[1]}`);
-      console.groupEnd();
+      logger.info(
+        "OCRLogic",
+        "Número de cuenta detectado (búsqueda estricta)",
+        {
+          accountNumber: match[1],
+        },
+      );
       return match[1];
     }
 
     // 5. Intento Secundario: Cualquier secuencia larga de 10-12 dígitos
-    // Útil si el PDF no tiene etiquetas claras como "Cuenta: XXXXXX"
-    console.log(
-      "⚠️ No se halló patrón con etiquetas. Probando búsqueda de secuencias largas...",
-    );
+    logger.debug("OCRLogic", "Probando búsqueda de secuencias largas");
     const fallbackRegex = /\b(\d{10,12})\b/;
     const fallbackMatch = fullText.match(fallbackRegex);
 
     if (fallbackMatch) {
-      console.log(
-        `✅ [AUDIT] Cuenta encontrada (Secuencia numérica): ${fallbackMatch[1]}`,
+      logger.info(
+        "OCRLogic",
+        "Número de cuenta detectado (búsqueda flexible)",
+        {
+          accountNumber: fallbackMatch[1],
+        },
       );
-      console.groupEnd();
       return fallbackMatch[1];
     }
 
-    console.warn(
-      "❌ [AUDIT] No se detectó ningún número de cuenta válido en el documento.",
+    logger.warn(
+      "OCRLogic",
+      "No se detectó ningún número de cuenta válido en el documento",
+      { textLength: fullText.length },
     );
-    console.groupEnd();
     return null;
   } catch (error) {
-    console.error("❌ [AUDIT LOG] Error fatal en proceso OCR:", error);
-    console.groupEnd();
-    // No lanzamos el error para no romper la UI, solo retornamos null
+    logger.error("OCRLogic", "Error fatal en proceso OCR", error, {
+      fileName: file.name,
+    });
     return null;
   }
 };

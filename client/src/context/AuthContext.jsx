@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from "react";
 import { supabase } from "../services/supabaseClient";
+import { logger } from "../utils/logger";
 
 const AuthContext = createContext();
 
@@ -19,9 +20,10 @@ export const AuthProvider = ({ children }) => {
   const fetchProfile = useCallback(async (authUser) => {
     if (!authUser) return null;
 
-    console.group("👤 [AUDIT LOG] Cargando Perfil de Usuario");
-    console.log(`ID: ${authUser.id}`);
-    console.log(`Email: ${authUser.email}`);
+    logger.info("AuthContext", "Cargando perfil de usuario", {
+      userId: authUser.id,
+      email: authUser.email,
+    });
 
     try {
       const { data, error } = await supabase
@@ -33,20 +35,16 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       if (data) {
-        console.log("✅ Perfil recuperado:", {
-          rol: data.role,
-          nombre: data.full_name,
+        logger.debug("AuthContext", "Perfil recuperado", {
+          role: data.role,
+          fullName: data.full_name,
         });
       } else {
-        console.log(
-          "ℹ️ No se encontró un perfil extendido en la tabla 'profiles'.",
-        );
+        logger.debug("AuthContext", "No se encontró perfil extendido en DB");
       }
-      console.groupEnd();
       return data;
     } catch (err) {
-      console.error("❌ [AUDIT LOG] Error cargando perfil:", err.message);
-      console.groupEnd();
+      logger.error("AuthContext", "Error cargando perfil", err);
       return null;
     }
   }, []);
@@ -55,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     let mounted = true;
 
     async function initialize() {
-      console.log("🏗️ [AUDIT LOG] Inicializando sistema de autenticación...");
+      logger.info("AuthContext", "Inicializando sistema de autenticación");
 
       try {
         const {
@@ -64,27 +62,23 @@ export const AuthProvider = ({ children }) => {
         } = await supabase.auth.getSession();
 
         if (error) {
-          console.error(
-            "🚨 [AUDIT LOG] Sesión corrupta detectada. Limpiando...",
-          );
+          logger.error("AuthContext", "Sesión corrupta detectada", error);
           await supabase.auth.signOut();
           throw error;
         }
 
         if (mounted) {
           if (initialSession) {
-            console.log("🔑 [AUDIT LOG] Sesión activa encontrada.");
+            logger.debug("AuthContext", "Sesión activa encontrada");
             const profile = await fetchProfile(initialSession.user);
             setSession(initialSession);
             setUser({ ...initialSession.user, ...profile });
           } else {
-            console.log(
-              "🛡️ [AUDIT LOG] No hay sesión activa. Esperando login.",
-            );
+            logger.debug("AuthContext", "No hay sesión activa");
           }
         }
       } catch (error) {
-        console.error("❌ [AUDIT LOG] Error en inicialización:", error.message);
+        logger.error("AuthContext", "Error en inicialización", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -97,23 +91,23 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
-      console.group(`🔔 [AUDIT LOG] Evento de Auth: ${event}`);
-      console.log(`Timestamp: ${new Date().toISOString()}`);
+      logger.debug("AuthContext", `Evento de Auth: ${event}`, {
+        timestamp: new Date().toISOString(),
+      });
 
       if (newSession?.access_token !== session?.access_token) {
         if (newSession) {
-          console.log("🔄 Actualizando datos de usuario y perfil...");
+          logger.debug("AuthContext", "Actualizando datos de usuario y perfil");
           const profile = await fetchProfile(newSession.user);
           setSession(newSession);
           setUser({ ...newSession.user, ...profile });
         } else {
-          console.log("📤 Usuario desconectado. Limpiando estado global.");
+          logger.debug("AuthContext", "Usuario desconectado");
           setSession(null);
           setUser(null);
         }
       }
 
-      console.groupEnd();
       setLoading(false);
     });
 
@@ -124,7 +118,7 @@ export const AuthProvider = ({ children }) => {
   }, [fetchProfile, session?.access_token]);
 
   const signOut = async () => {
-    console.log("🚪 [AUDIT LOG] Cerrando sesión...");
+    logger.audit("LOGOUT", "auth", { timestamp: new Date().toISOString() });
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);

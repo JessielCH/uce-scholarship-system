@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { extractBankAccount } from "../../utils/ocrLogic";
 import { supabase } from "../../services/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
+import { logger } from "../../utils/logger";
 import {
   UploadCloud,
   Check,
@@ -37,7 +38,9 @@ const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
       const detectedAccount = await extractBankAccount(selectedFile);
       if (detectedAccount) setAccountNumber(detectedAccount);
     } catch (error) {
-      console.error("OCR Error", error);
+      logger.error("BankUploadModal", "Error en OCR", error, {
+        fileName: selectedFile.name,
+      });
     } finally {
       setIsScanning(false);
       setStep(2);

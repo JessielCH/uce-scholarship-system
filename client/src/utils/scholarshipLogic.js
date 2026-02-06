@@ -1,8 +1,10 @@
 // client/src/utils/scholarshipLogic.js
+import { logger } from "./logger";
 
 export const processScholarshipFile = (rawData) => {
-  console.group("🧠 [AUDIT LOG] Ejecución del Algoritmo de Selección");
-  console.log("Datos de entrada recibidos:", rawData.length, "filas");
+  logger.info("ScholarshipLogic", "Iniciando ejecución del algoritmo", {
+    rowCount: rawData.length,
+  });
 
   // 1. Normalize Data (Map Excel columns to clean variables)
   const students = rawData
@@ -20,9 +22,9 @@ export const processScholarshipFile = (rawData) => {
     .filter((s) => {
       const isValid = s.university_email.includes("@uce.edu.ec");
       if (!isValid && s.university_email) {
-        console.warn(
-          `⚠️ Fila descartada (Email no institucional): ${s.university_email}`,
-        );
+        logger.warn("ScholarshipLogic", "Email descartado (no institucional)", {
+          email: s.university_email,
+        });
       }
       return isValid;
     });
@@ -41,20 +43,25 @@ export const processScholarshipFile = (rawData) => {
     careers: Object.keys(studentsByCareer).length,
   };
 
-  console.log(`📂 Carreras detectadas: ${stats.careers}`);
+  logger.debug("ScholarshipLogic", "Carreras detectadas", {
+    count: stats.careers,
+  });
 
   // 3. Apply Algorithm per Career
   Object.keys(studentsByCareer).forEach((career) => {
     const group = studentsByCareer[career];
 
-    console.group(`🎓 Procesando Carrera: ${career}`);
-    console.log(`Total estudiantes en carrera: ${group.length}`);
+    logger.info("ScholarshipLogic", `Procesando carrera: ${career}`, {
+      totalStudents: group.length,
+    });
 
     // A. Filter Regular Students
     const regulars = group.filter(
       (s) => s.academic_condition.toLowerCase() === "regular",
     );
-    console.log(`Estudiantes regulares elegibles: ${regulars.length}`);
+    logger.debug("ScholarshipLogic", "Estudiantes regulares", {
+      count: regulars.length,
+    });
 
     // B. Sort Descending by Grade
     regulars.sort((a, b) => b.average_grade - a.average_grade);
@@ -66,8 +73,10 @@ export const processScholarshipFile = (rawData) => {
         ? regulars[cutoffCount - 1].average_grade
         : 999;
 
-    console.log(`Meta Top 10%: ${cutoffCount} estudiantes`);
-    console.log(`Nota de corte calculada (Cutoff): ${cutoffGrade}`);
+    logger.debug("ScholarshipLogic", "Cálculo de corte", {
+      targetCount: cutoffCount,
+      cutoffGrade,
+    });
 
     // D. Mark Selected (Including ties)
     group.forEach((student) => {
@@ -84,9 +93,10 @@ export const processScholarshipFile = (rawData) => {
 
       if (isSelected) {
         stats.selected++;
-        console.log(
-          `✅ SELECCIONADO: ${student.first_name} ${student.last_name} (${student.average_grade})`,
-        );
+        logger.debug("ScholarshipLogic", "Estudiante seleccionado", {
+          name: `${student.first_name} ${student.last_name}`,
+          grade: student.average_grade,
+        });
       }
       stats.total++;
 
@@ -97,18 +107,13 @@ export const processScholarshipFile = (rawData) => {
         cutoff_used: cutoffGrade,
       });
     });
-    console.groupEnd();
   });
 
-  console.group("📊 Resumen Final del Proceso");
-  console.log(`Total Procesados: ${stats.total}`);
-  console.log(`Total Seleccionados: ${stats.selected}`);
-  console.log(
-    `Tasa de selección: ${((stats.selected / stats.total) * 100).toFixed(2)}%`,
-  );
-  console.groupEnd();
-
-  console.groupEnd(); // Cierre del Audit Log principal
+  logger.info("ScholarshipLogic", "Resumen del proceso", {
+    totalProcessed: stats.total,
+    totalSelected: stats.selected,
+    selectionRate: `${((stats.selected / stats.total) * 100).toFixed(2)}%`,
+  });
 
   return { processedData: finalList, stats };
 };

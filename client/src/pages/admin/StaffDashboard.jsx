@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../services/supabaseClient";
+import { logger } from "../../utils/logger";
 import {
   BarChart,
   Bar,
@@ -74,7 +75,7 @@ const StaffDashboard = () => {
 
       setStats(counts);
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      logger.error("StaffDashboard", "Error fetching stats", error);
     } finally {
       setLoading(false);
     }
