@@ -143,6 +143,85 @@ app.post("/api/admin/create-staff", async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/auth/verify-student:
+ * post:
+ * summary: Verificar si un email pertenece a un estudiante becado
+ * tags: [Auth]
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required: [email]
+ * properties:
+ * email:
+ * type: string
+ * responses:
+ * 200:
+ * description: Email validated - student found
+ * 404:
+ * description: Email not found in scholarship students
+ */
+app.post("/api/auth/verify-student", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ error: "Email requerido" });
+    }
+
+    // Normalizar email: minúsculas y trim
+    const normalizedEmail = email.trim().toLowerCase();
+    console.log(`🔍 Buscando estudiante con email: ${normalizedEmail}`);
+
+    // Buscar en la tabla de estudiantes por university_email (campo UNIQUE)
+    const { data: student, error } = await supabase
+      .from("students")
+      .select("id, first_name, last_name, national_id, university_email")
+      .eq("university_email", normalizedEmail)
+      .maybeSingle();
+
+    if (error) {
+      console.error("❌ Error Supabase:", error);
+      return res.status(500).json({
+        error: "Error al verificar estudiante",
+        details: error.message,
+      });
+    }
+
+    if (student) {
+      console.log(`✅ Estudiante becado encontrado: ${normalizedEmail}`);
+      console.log(
+        `   Datos: ${student.first_name} ${student.last_name} (${student.national_id})`,
+      );
+      return res.status(200).json({
+        isBecado: true,
+        message: "Estudiante becado encontrado",
+        student: {
+          id: student.id,
+          fullName: `${student.first_name} ${student.last_name}`,
+          nationalId: student.national_id,
+          email: student.university_email,
+        },
+      });
+    }
+
+    console.log(`⚠️ Email no encontrado en BD de becados: ${normalizedEmail}`);
+    res.status(404).json({
+      isBecado: false,
+      message: "Este correo no está registrado como estudiante becado",
+    });
+  } catch (error) {
+    console.error("❌ Error crítico:", error);
+    res
+      .status(500)
+      .json({ error: "Error del servidor", details: error.message });
+  }
+});
+
 app.get("/", (req, res) => {
   res.send("UCE Scholarship API Running 🚀. Documentation at /api-docs");
 });

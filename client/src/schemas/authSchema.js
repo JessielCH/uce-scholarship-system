@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-// Esquema base para correos institucionales
+// Esquema base para correos institucionales (solo caracteres que Supabase acepta)
 export const universityEmail = z
   .string()
-  .email({ message: "Email inválido" })
-  .refine((v) => v.endsWith("@uce.edu.ec"), {
-    message: "Debe ser correo institucional @uce.edu.ec",
+  .refine((v) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v), {
+    message:
+      "Email inválido. Solo se permiten letras, números, puntos, guiones y guiones bajos",
   });
 
 export const passwordSchema = z
@@ -28,7 +28,16 @@ export const signUpSchema = loginSchema
   });
 
 export const staffCreateSchema = z.object({
-  email: universityEmail,
+  email: z
+    .string()
+    .refine(
+      (v) =>
+        /^[a-zA-Z0-9áéíóúñÁÉÍÓÚÑ._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v),
+      { message: "Email inválido" },
+    )
+    .refine((v) => v.endsWith("@uce.edu.ec"), {
+      message: "Debe ser correo institucional @uce.edu.ec",
+    }),
   password: passwordSchema,
   fullName: z.string().min(3, { message: "El nombre es demasiado corto" }),
   role: z.enum(["STAFF", "ADMIN"]).default("STAFF"),

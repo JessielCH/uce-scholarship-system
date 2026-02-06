@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { CheckCircle, XCircle, FileText, DollarSign } from "lucide-react";
 import Button from "../../atoms/Button";
 import { AlertCircle } from "lucide-react";
+import RejectionModal from "../RejectionModal";
 
 /**
  * MOLECULE: ActionButtons
@@ -14,35 +15,49 @@ const ActionButtons = ({
   onStatusChange,
   onGenerateContract,
 }) => {
+  const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+  const [rejectionType, setRejectionType] = useState(null);
   if (status === "DOCS_UPLOADED") {
     return (
-      <div className="flex justify-end items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={XCircle}
-          onClick={() =>
+      <>
+        <RejectionModal
+          isOpen={rejectionModalOpen && rejectionType === "DOCS"}
+          onClose={() => setRejectionModalOpen(false)}
+          onConfirm={(reason) => {
             onStatusChange({
               id: item.id,
               newStatus: "CHANGES_REQUESTED",
               student: item.students,
-              reason: "Doc. ilegible",
-            })
-          }
+              reason: reason,
+            });
+            setRejectionModalOpen(false);
+          }}
+          documentType="Documentos"
         />
-        <Button
-          variant="primary"
-          size="sm"
-          icon={CheckCircle}
-          onClick={() =>
-            onStatusChange({
-              id: item.id,
-              newStatus: "APPROVED",
-              student: item.students,
-            })
-          }
-        />
-      </div>
+        <div className="flex justify-end items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={XCircle}
+            onClick={() => {
+              setRejectionType("DOCS");
+              setRejectionModalOpen(true);
+            }}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            icon={CheckCircle}
+            onClick={() =>
+              onStatusChange({
+                id: item.id,
+                newStatus: "APPROVED",
+                student: item.students,
+              })
+            }
+          />
+        </div>
+      </>
     );
   }
 
@@ -68,33 +83,45 @@ const ActionButtons = ({
 
   if (status === "CONTRACT_UPLOADED") {
     return (
-      <div className="flex justify-end items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={XCircle}
-          onClick={() =>
+      <>
+        <RejectionModal
+          isOpen={rejectionModalOpen && rejectionType === "CONTRACT"}
+          onClose={() => setRejectionModalOpen(false)}
+          onConfirm={(reason) => {
             onStatusChange({
               id: item.id,
               newStatus: "CONTRACT_REJECTED",
               student: item.students,
-              reason: "Firma inválida",
-            })
-          }
+              reason: reason,
+            });
+            setRejectionModalOpen(false);
+          }}
+          documentType="Contrato"
         />
-        <Button
-          variant="primary"
-          size="sm"
-          icon={CheckCircle}
-          onClick={() =>
-            onStatusChange({
-              id: item.id,
-              newStatus: "READY_FOR_PAYMENT",
-              student: item.students,
-            })
-          }
-        />
-      </div>
+        <div className="flex justify-end items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={XCircle}
+            onClick={() => {
+              setRejectionType("CONTRACT");
+              setRejectionModalOpen(true);
+            }}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            icon={CheckCircle}
+            onClick={() =>
+              onStatusChange({
+                id: item.id,
+                newStatus: "READY_FOR_PAYMENT",
+                student: item.students,
+              })
+            }
+          />
+        </div>
+      </>
     );
   }
 

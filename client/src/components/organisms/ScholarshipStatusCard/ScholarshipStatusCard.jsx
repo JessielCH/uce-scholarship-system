@@ -58,6 +58,11 @@ const ScholarshipStatusCard = ({
       color: "text-brand-blue",
       icon: FileSignature,
     },
+    CONTRACT_REJECTED: {
+      label: "Acción Requerida: Corregir Contrato",
+      color: "text-red-500",
+      icon: AlertCircle,
+    },
     READY_FOR_PAYMENT: {
       label: "Validando Firma",
       color: "text-purple-500",
@@ -141,6 +146,18 @@ const ScholarshipStatusCard = ({
               Download
             </Button>
           </>
+        )}
+
+        {currentStatus === "CONTRACT_REJECTED" && (
+          <Button
+            variant="primary"
+            size="sm"
+            icon={UploadCloud}
+            onClick={onUploadContract}
+            disabled={isLoading}
+          >
+            Re-Upload Contract
+          </Button>
         )}
 
         {currentStatus === "PAID" && (

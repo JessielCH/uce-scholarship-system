@@ -97,6 +97,32 @@ const Login = () => {
       const { email, password } = values;
 
       try {
+        // Si es registro, verificar primero que sea estudiante becado
+        if (isSignUp) {
+          const verifyResponse = await fetch(
+            "http://localhost:3000/api/auth/verify-student",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email }),
+            },
+          );
+
+          const verifyData = await verifyResponse.json();
+
+          if (!verifyData.isBecado) {
+            setAuthError(
+              "Este correo no está registrado como estudiante becado. Contacta a administración.",
+            );
+            return;
+          }
+
+          logger.info("StudentRegistration", "Estudiante becado verificado", {
+            email,
+            fullName: verifyData.student.fullName,
+          });
+        }
+
         let result;
         if (isSignUp) {
           result = await supabase.auth.signUp({ email, password });

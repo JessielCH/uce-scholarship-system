@@ -56,6 +56,32 @@ const Dashboard = () => {
     };
   }, [data?.scholarship?.id, refetch]);
 
+  // REALTIME: Escuchar cambios en documentos (admin garga contrato, rechaza docs, etc)
+  useEffect(() => {
+    if (!data?.scholarship?.id) return;
+
+    const docsChannel = supabase
+      .channel(`documents-update-${data.scholarship.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documents",
+          filter: `selection_id=eq.${data.scholarship.id}`,
+        },
+        (payload) => {
+          console.log("📄 Cambio en documentos detectado:", payload);
+          refetch();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(docsChannel);
+    };
+  }, [data?.scholarship?.id, refetch]);
+
   const studentData = data?.student;
   const scholarship = data?.scholarship;
   const loading = authLoading || queryLoading;

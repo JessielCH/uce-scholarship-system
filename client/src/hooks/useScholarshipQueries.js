@@ -25,6 +25,7 @@ export const useAcademicPeriods = () => {
 /**
  * CUSTOM HOOK: useStudentDashboardData
  * Abstracts student dashboard data fetching logic
+ * Only shows current period for the student
  */
 export const useStudentDashboardData = (userEmail, enabled = true) => {
   return useQuery({
@@ -38,12 +39,26 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
 
       if (stuError) throw stuError;
 
+      // Get the active academic period
+      const { data: activePeriod, error: periodError } = await supabase
+        .from("academic_periods")
+        .select("id")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (periodError) throw periodError;
+
+      if (!activePeriod) {
+        // If no active period, return no scholarship
+        return { student, scholarship: null };
+      }
+
+      // Fetch scholarship selection ONLY for the student's current active period
       const { data: selection, error: selError } = await supabase
         .from("scholarship_selections")
         .select("*, academic_periods(name), careers(name), documents(*)")
         .eq("student_id", student.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .eq("period_id", activePeriod.id)
         .maybeSingle();
 
       if (selError) throw selError;

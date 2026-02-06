@@ -99,8 +99,20 @@ const ScholarshipTable = () => {
         () => queryClient.invalidateQueries({ queryKey: ["scholars"] }),
       )
       .subscribe();
+
+    // Real-time para documentos cargados por estudiantes
+    const docsChannel = supabase
+      .channel("admin-documents-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents" },
+        () => queryClient.invalidateQueries({ queryKey: ["scholars"] }),
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(docsChannel);
     };
   }, [queryClient]);
 
