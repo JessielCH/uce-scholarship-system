@@ -1,5 +1,6 @@
 import React from "react";
 import { FileCheck, LogOut, User } from "lucide-react";
+import CurrentPeriodBadge from "../../molecules/CurrentPeriodBadge";
 
 /**
  * ORGANISM: StudentDashboardNavbar
@@ -12,13 +13,14 @@ const StudentDashboardNavbar = ({ studentData, onLogout }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo Section */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <div className="bg-brand-blue rounded-lg p-1">
               <FileCheck className="text-white" size={24} />
             </div>
             <span className="text-xl font-bold text-brand-blue tracking-tight italic">
               Portal de Becas UCE
             </span>
+            <CurrentPeriodBadge />
           </div>
 
           {/* Right Section */}

@@ -18,6 +18,11 @@ import Button from "../../atoms/Button";
  * Reemplaza ScholarshipTableRow para mejor responsividad mobile
  */
 const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
+  // Guard clause: evitar errores si item es undefined
+  if (!item || !item.students) {
+    return null;
+  }
+
   const getStatusLabel = (status) => {
     const labels = {
       SELECTED: "✓ Becado",

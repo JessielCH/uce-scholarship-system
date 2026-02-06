@@ -22,6 +22,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 // Admin/Staff Pages
 import DashboardHome from "./components/admin/DashboardHome"; // <--- EL SWITCH INTELIGENTE
 import ScholarsList from "./pages/admin/ScholarsList"; // Gestión Becarios
+import ScholarshipsHistory from "./pages/admin/ScholarshipsHistory"; // Becarios Históricos
 import IngestData from "./pages/admin/IngestData"; // Carga Excel
 import StaffSettings from "./pages/admin/StaffSettings"; // Gestión Usuarios
 import AuditLogs from "./pages/admin/AuditLogs"; // Registro de Auditoría
@@ -58,6 +59,7 @@ function App() {
 
                 {/* Operaciones */}
                 <Route path="scholars" element={<ScholarsList />} />
+                <Route path="history" element={<ScholarshipsHistory />} />
                 <Route path="ingest" element={<IngestData />} />
 
                 {/* Exclusivo ADMIN */}

@@ -2,6 +2,27 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../services/supabaseClient";
 
 /**
+ * CUSTOM HOOK: useAcademicPeriods
+ * Fetch all academic periods
+ */
+export const useAcademicPeriods = () => {
+  return useQuery({
+    queryKey: ["academic-periods"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("academic_periods")
+        .select("*")
+        .order("is_active", { ascending: false })
+        .order("name", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+};
+
+/**
  * CUSTOM HOOK: useStudentDashboardData
  * Abstracts student dashboard data fetching logic
  */
@@ -53,44 +74,66 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
 
 /**
  * CUSTOM HOOK: useAdminMetrics
- * Abstracts admin dashboard metrics fetching
+ * Abstracts admin dashboard metrics fetching with period filter
  */
-export const useAdminMetrics = () => {
+export const useAdminMetrics = (periodId = null) => {
   const AVG_SCHOLARSHIP_COST = 400;
   const BUDGET_TOTAL = 2500000;
 
   return useQuery({
-    queryKey: ["admin-strategic-metrics"],
+    queryKey: ["admin-strategic-metrics", periodId],
     queryFn: async () => {
-      const { data: statusCounts, error: statusError } = await supabase
+      // Get period name
+      let periodData = null;
+      if (periodId) {
+        const { data } = await supabase
+          .from("academic_periods")
+          .select("name")
+          .eq("id", periodId)
+          .maybeSingle();
+        periodData = data;
+      } else {
+        const { data } = await supabase
+          .from("academic_periods")
+          .select("name")
+          .eq("is_active", true)
+          .maybeSingle();
+        periodData = data;
+      }
+
+      // Fetch scholarship selections with period filter
+      let query = supabase
         .from("scholarship_selections")
-        .select("status");
+        .select(
+          "status, average_grade, careers(faculty_id, faculties(name), name)",
+        );
+
+      if (periodId) {
+        query = query.eq("period_id", periodId);
+      } else {
+        // If no period specified, get active period and filter by it
+        const { data: activePeriod } = await supabase
+          .from("academic_periods")
+          .select("id")
+          .eq("is_active", true)
+          .maybeSingle();
+        if (activePeriod) {
+          query = query.eq("period_id", activePeriod.id);
+        }
+      }
+
+      const { data: statusCounts, error: statusError } = await query;
 
       if (statusError) throw statusError;
-
-      const { data: periodData } = await supabase
-        .from("academic_periods")
-        .select("name")
-        .eq("is_active", true)
-        .maybeSingle();
 
       const counts = statusCounts.reduce((acc, curr) => {
         acc[curr.status] = (acc[curr.status] || 0) + 1;
         return acc;
       }, {});
 
-      // Fetch metrics for faculties and careers
-      const { data: facultyMetrics } = await supabase
-        .from("scholarship_selections")
-        .select("average_grade, careers(faculty_id, faculties(name))");
-
-      const { data: careerMetrics } = await supabase
-        .from("scholarship_selections")
-        .select("average_grade, careers(name)");
-
-      // Calculate best faculty and career
+      // Calculate faculty averages
       const facultyAverages = {};
-      facultyMetrics?.forEach((item) => {
+      statusCounts?.forEach((item) => {
         const facultyName = item.careers?.faculties?.name || "Unknown";
         if (!facultyAverages[facultyName]) {
           facultyAverages[facultyName] = { sum: 0, count: 0 };
@@ -99,8 +142,9 @@ export const useAdminMetrics = () => {
         facultyAverages[facultyName].count += 1;
       });
 
+      // Calculate career averages
       const careerAverages = {};
-      careerMetrics?.forEach((item) => {
+      statusCounts?.forEach((item) => {
         const careerName = item.careers?.name || "Unknown";
         if (!careerAverages[careerName]) {
           careerAverages[careerName] = { sum: 0, count: 0 };

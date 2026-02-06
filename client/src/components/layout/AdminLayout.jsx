@@ -9,7 +9,9 @@ import {
   LogOut,
   Menu,
   Upload,
+  Clock,
 } from "lucide-react";
+import CurrentPeriodBadge from "../molecules/CurrentPeriodBadge";
 import clsx from "clsx";
 
 const AdminLayout = () => {
@@ -27,6 +29,7 @@ const AdminLayout = () => {
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
     { label: "Scholars", icon: Users, path: "/admin/scholars" },
+    { label: "History", icon: Clock, path: "/admin/history" },
     { label: "Data Ingestion", icon: Upload, path: "/admin/ingest" },
   ];
 
@@ -101,9 +104,12 @@ const AdminLayout = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col">
         <header className="bg-white shadow-sm px-8 py-4 flex justify-between items-center h-16 z-10">
-          <h2 className="text-xl font-bold text-brand-blue">
-            Management Panel
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-brand-blue">
+              Management Panel
+            </h2>
+            <CurrentPeriodBadge />
+          </div>
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-end">
               <span className="text-sm font-semibold text-gray-700">

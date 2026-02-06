@@ -2,6 +2,7 @@ import React from "react";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { LogOut, PieChart } from "lucide-react";
+import CurrentPeriodBadge from "../molecules/CurrentPeriodBadge";
 
 const GuestLayout = () => {
   const { signOut, user } = useAuth();
@@ -13,7 +14,7 @@ const GuestLayout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             {/* Logo / Título */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <div className="bg-uce-blue p-2 rounded-lg text-white">
                 <PieChart size={20} />
               </div>
@@ -25,6 +26,7 @@ const GuestLayout = () => {
                   Universidad Central del Ecuador
                 </p>
               </div>
+              <CurrentPeriodBadge />
             </div>
 
             {/* Perfil / Salir */}

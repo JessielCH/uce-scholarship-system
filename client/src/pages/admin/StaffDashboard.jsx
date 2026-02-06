@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../services/supabaseClient";
 import { logger } from "../../utils/logger";
-import { useAdminMetrics } from "../../hooks/useScholarshipQueries";
+import {
+  useAdminMetrics,
+  useAcademicPeriods,
+} from "../../hooks/useScholarshipQueries";
 import {
   BarChart,
   Bar,
@@ -24,10 +27,13 @@ import {
   Activity,
 } from "lucide-react";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
+import CurrentPeriodBadge from "../../components/molecules/CurrentPeriodBadge";
 import AcademicRankings from "../../components/organisms/AcademicRankings";
 
 const StaffDashboard = () => {
-  const { data, isLoading } = useAdminMetrics();
+  const { data: periods } = useAcademicPeriods();
+  const currentPeriod = periods?.find((p) => p.is_active);
+  const { data, isLoading } = useAdminMetrics(currentPeriod?.id);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -102,13 +108,16 @@ const StaffDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Activity className="text-uce-blue" /> Panel de Control Operativo
-        </h1>
-        <p className="text-gray-500">
-          Resumen de la actividad de becas en tiempo real.
-        </p>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Activity className="text-uce-blue" /> Panel de Control Operativo
+          </h1>
+          <p className="text-gray-500">
+            Resumen de la actividad de becas en tiempo real.
+          </p>
+        </div>
+        <CurrentPeriodBadge />
       </div>
 
       {/* KPI CARDS - Estilo Visily */}

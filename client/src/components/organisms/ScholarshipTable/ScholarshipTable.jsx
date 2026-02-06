@@ -23,6 +23,13 @@ const fetchScholars = async ({ queryKey }) => {
   const from = page * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
+  // Primero obtener el período actual
+  const { data: periodData } = await supabase
+    .from("academic_periods")
+    .select("id")
+    .eq("is_active", true)
+    .single();
+
   let query = supabase.from("scholarship_selections").select(
     `
       *,
@@ -32,6 +39,11 @@ const fetchScholars = async ({ queryKey }) => {
     `,
     { count: "exact" },
   );
+
+  // Filtrar por período actual
+  if (periodData) {
+    query = query.eq("period_id", periodData.id);
+  }
 
   if (statusFilter) query = query.eq("status", statusFilter);
   if (careerFilter) query = query.eq("career_id", careerFilter);

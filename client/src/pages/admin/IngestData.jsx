@@ -11,32 +11,69 @@ import {
   Loader2,
   Trash2,
   Info,
-  ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useAcademicPeriods } from "../../hooks/useScholarshipQueries";
 import Pagination from "../../components/molecules/Pagination";
+import PeriodSelector from "../../components/molecules/PeriodSelector";
 
 const IngestData = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { data: periods } = useAcademicPeriods();
+
   const [file, setFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [stats, setStats] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [previewPage, setPreviewPage] = useState(0);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(null);
   const PREVIEW_ITEMS_PER_PAGE = 10;
 
-  const { data: activePeriod } = useQuery({
-    queryKey: ["activePeriod"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("academic_periods")
-        .select("*")
-        .eq("is_active", true)
-        .single();
-      return data || { id: null, name: "Sin Periodo Activo" };
-    },
+  // Debug: Log de autenticación
+  console.log("🔐 IngestData Auth:", {
+    user: user?.email,
+    role: user?.role,
+    authLoading,
   });
+
+  // Esperar a que el auth cargue
+  if (authLoading) {
+    return (
+      <div className="space-y-6 p-4 md:p-6 animate-fade-in">
+        <div>
+          <div className="h-10 bg-gray-200 rounded-lg animate-pulse w-64 mb-4"></div>
+          <div className="h-6 bg-gray-200 rounded-lg animate-pulse w-96"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Verificar que sea ADMIN o STAFF
+  const userRole = user?.role;
+  const isAuthorized = userRole === "ADMIN" || userRole === "STAFF";
+
+  if (!isAuthorized) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+        <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+        <h2 className="text-xl font-black text-red-900 mb-2">
+          Acceso Denegado
+        </h2>
+        <p className="text-red-700 mb-2">
+          Solo administradores y personal operativo pueden cargar datos de
+          becarios.
+        </p>
+        <p className="text-red-600 text-sm">
+          Tu rol actual:{" "}
+          <span className="font-bold">{userRole || "Sin definir"}</span>
+        </p>
+      </div>
+    );
+  }
+
+  const selectedPeriod = periods?.find((p) => p.id === selectedPeriodId);
+  const isCurrentPeriod = selectedPeriod?.is_active;
 
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -58,18 +95,39 @@ const IngestData = () => {
   };
 
   const handleSaveToDB = async () => {
-    if (!activePeriod?.id) {
-      alert("Error: No hay un periodo académico activo configurado.");
+    if (!selectedPeriodId) {
+      alert("Error: Debes seleccionar un período académico.");
+      return;
+    }
+
+    if (
+      !isCurrentPeriod &&
+      !window.confirm(
+        "⚠️ Este es un período anterior. Se cargarán todos como históricos (PAID).\n\n¿Estás seguro?",
+      )
+    ) {
       return;
     }
 
     setIsUploading(true);
     setUploadStatus(null);
-    console.group("🚀 [AUDIT LOG] Inicio de Ingesta Masiva");
+    console.group(
+      isCurrentPeriod
+        ? "🚀 [AUDIT LOG] Ingesta de Período ACTUAL (Aplicando Algoritmo 10%)"
+        : "🚀 [AUDIT LOG] Ingesta de Período ANTERIOR (Histórico)",
+    );
+    console.log("📌 INFORMACIÓN DEL PERÍODO:");
+    console.log(`   - ID: ${selectedPeriodId}`);
+    console.log(`   - Nombre: ${selectedPeriod?.name}`);
+    console.log(`   - ¿Es ACTUAL? ${isCurrentPeriod}`);
+    console.log(`   - Total registros a procesar: ${previewData.length}`);
 
     try {
       // 1. SINCRONIZACIÓN DE ESTRUCTURA (FACULTADES)
       const uniqueFaculties = [...new Set(previewData.map((s) => s.faculty))];
+      console.log(
+        `\n✅ FACULTADES: ${uniqueFaculties.length} únicas encontradas`,
+      );
       for (const fName of uniqueFaculties) {
         await supabase
           .from("faculties")
@@ -91,6 +149,7 @@ const IngestData = () => {
           }
         }
       });
+      console.log(`✅ CARRERAS: ${uniqueCareers.length} únicas encontradas`);
       await supabase
         .from("careers")
         .upsert(uniqueCareers, { onConflict: "name" });
@@ -107,47 +166,108 @@ const IngestData = () => {
       }));
       const { data: savedStudents, error: stuError } = await supabase
         .from("students")
-        .upsert(studentsPayload, { onConflict: "university_email" })
-        .select("id, university_email");
+        .upsert(studentsPayload, { onConflict: "national_id" })
+        .select("id, university_email, national_id");
 
       if (stuError)
         throw new Error(`Error en tabla students: ${stuError.message}`);
 
-      const emailToIdMap = {};
-      savedStudents.forEach((s) => (emailToIdMap[s.university_email] = s.id));
+      console.log(
+        `✅ ESTUDIANTES: ${savedStudents?.length} registrados/actualizados`,
+      );
 
-      // 4. DISTRIBUCIÓN DE BECAS (SCHOLARSHIP_SELECTIONS)
-      const selectionsPayload = previewData
-        .filter((s) => s.is_selected)
-        .map((s) => {
-          const studentId = emailToIdMap[s.university_email];
-          const careerId = careersDB?.find((c) => c.name === s.career)?.id;
-          if (!studentId || !careerId) return null;
-          return {
-            student_id: studentId,
-            period_id: activePeriod.id,
-            career_id: careerId,
-            average_grade: s.average_grade,
-            semester: s.semester,
-            academic_condition: s.academic_condition,
-            status: "SELECTED",
-            is_top_10: true,
-          };
-        })
-        .filter(Boolean);
+      const emailToIdMap = {};
+      const nationalIdToIdMap = {};
+      savedStudents.forEach((s) => {
+        emailToIdMap[s.university_email] = s.id;
+        nationalIdToIdMap[s.national_id] = s.id;
+      });
+
+      // 4. REGISTRO DE BECARIOS (SCHOLARSHIP_SELECTIONS)
+      let selectionsPayload;
+      let countSelected = 0;
+      let countPaid = 0;
+
+      if (isCurrentPeriod) {
+        // PERÍODO ACTUAL: Aplicar algoritmo del 10% (solo los marcados como is_selected)
+        selectionsPayload = previewData
+          .filter((s) => s.is_selected)
+          .map((s) => {
+            const studentId = nationalIdToIdMap[String(s.national_id)];
+            const careerId = careersDB?.find((c) => c.name === s.career)?.id;
+            if (!studentId || !careerId) return null;
+            countSelected++;
+            return {
+              student_id: studentId,
+              period_id: selectedPeriodId,
+              career_id: careerId,
+              average_grade: s.average_grade,
+              semester: s.semester,
+              academic_condition: s.academic_condition,
+              status: "SELECTED",
+              is_top_10: true,
+            };
+          })
+          .filter(Boolean);
+        console.log(`\n📊 PERÍODO ACTUAL - ALGORITMO 10%:`);
+        console.log(`   - Total becarios TOP 10%: ${selectionsPayload.length}`);
+        console.log(`   - Status a guardar: SELECTED`);
+      } else {
+        // PERÍODO ANTERIOR: Todos como históricos PAID
+        selectionsPayload = previewData
+          .map((s) => {
+            const studentId = nationalIdToIdMap[String(s.national_id)];
+            const careerId = careersDB?.find((c) => c.name === s.career)?.id;
+            if (!studentId || !careerId) return null;
+            countPaid++;
+            return {
+              student_id: studentId,
+              period_id: selectedPeriodId,
+              career_id: careerId,
+              average_grade: s.average_grade,
+              semester: s.semester,
+              academic_condition: s.academic_condition,
+              status: "PAID",
+              is_top_10: s.is_selected || false,
+            };
+          })
+          .filter(Boolean);
+        console.log(`\n📚 PERÍODO ANTERIOR - HISTÓRICO:`);
+        console.log(
+          `   - Total becarios cargados: ${selectionsPayload.length}`,
+        );
+        console.log(`   - Status a guardar: PAID`);
+      }
 
       if (selectionsPayload.length > 0) {
-        const { error: selError } = await supabase
+        console.log(`\n⏳ Guardando en ED...`);
+        const { data: insertedData, error: selError } = await supabase
           .from("scholarship_selections")
-          .upsert(selectionsPayload, { onConflict: "student_id, period_id" });
+          .upsert(selectionsPayload, { onConflict: "student_id, period_id" })
+          .select("id, student_id, status, period_id");
+
         if (selError)
           throw new Error(
             `Error en scholarship_selections: ${selError.message}`,
           );
+
+        console.log(`\n✅ GUARDADO EXITOSO EN BD:`);
+        console.log(
+          `   - Registros insertados/actualizados: ${insertedData?.length}`,
+        );
+        const statusCount = {
+          SELECTED:
+            insertedData?.filter((r) => r.status === "SELECTED").length || 0,
+          PAID: insertedData?.filter((r) => r.status === "PAID").length || 0,
+        };
+        console.log(`   - SELECTED: ${statusCount.SELECTED}`);
+        console.log(`   - PAID: ${statusCount.PAID}`);
+        console.log(`   - Period ID guardado: ${selectedPeriodId}`);
       }
 
       setUploadStatus("success");
     } catch (error) {
+      console.error("❌ Error:", error);
       alert("Error en la base de datos: " + error.message);
       setUploadStatus("error");
     } finally {
@@ -162,43 +282,35 @@ const IngestData = () => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-brand-blue italic tracking-tighter uppercase">
-            Ingesta de Datos
+            Ingesta de Datos Históricos
           </h1>
-          <p className="text-sm text-gray-500 font-bold flex items-center gap-2">
-            Periodo:{" "}
-            <span className="text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-              {activePeriod?.name}
-            </span>
+          <p className="text-sm text-gray-500 font-bold">
+            Importa becarios ya confirmados para crear histórico por período
           </p>
         </div>
 
-        {stats && (
-          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
-            {[
-              { label: "TOTAL", val: stats.total, color: "text-gray-900" },
-              {
-                label: "BECADOS",
-                val: stats.selected,
-                color: "text-green-600",
-              },
-              {
-                label: "CARRERAS",
-                val: stats.careers,
-                color: "text-brand-blue",
-              },
-            ].map((s, i) => (
-              <div
-                key={i}
-                className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center"
-              >
-                <p className="text-[10px] text-gray-400 font-black tracking-widest">
-                  {s.label}
-                </p>
-                <p className={`font-black text-lg ${s.color}`}>{s.val}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="w-full lg:w-auto space-y-2">
+          <PeriodSelector
+            selectedPeriodId={selectedPeriodId}
+            onPeriodChange={setSelectedPeriodId}
+            className="w-full"
+          />
+          {selectedPeriodId && selectedPeriod && (
+            <div
+              className={`p-3 rounded-lg text-xs font-bold uppercase tracking-widest text-center ${
+                isCurrentPeriod
+                  ? "bg-purple-100 text-purple-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {isCurrentPeriod ? (
+                <span>🎯 Aplicará Algoritmo del 10%</span>
+              ) : (
+                <span>📚 Se cargarán como Históricos</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Area de Carga */}
@@ -255,7 +367,7 @@ const IngestData = () => {
               </button>
               <button
                 onClick={handleSaveToDB}
-                disabled={isUploading || !activePeriod?.id}
+                disabled={isUploading || !selectedPeriodId}
                 className="flex-[3] sm:flex-none bg-brand-blue text-white px-8 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 disabled:opacity-50 shadow-lg shadow-blue-100 font-black uppercase text-xs tracking-widest"
               >
                 {isUploading ? (
@@ -271,12 +383,18 @@ const IngestData = () => {
       )}
 
       {uploadStatus === "success" && (
-        <div className="bg-green-600 text-white p-4 rounded-2xl flex items-center gap-4 shadow-lg animate-bounce">
+        <div
+          className={`text-white p-4 rounded-2xl flex items-center gap-4 shadow-lg animate-bounce ${
+            isCurrentPeriod ? "bg-purple-600" : "bg-green-600"
+          }`}
+        >
           <div className="bg-white/20 p-2 rounded-full">
             <CheckCircle className="h-6 w-6" />
           </div>
           <span className="font-black uppercase text-xs tracking-widest">
-            ¡Ingesta completada con éxito!
+            {isCurrentPeriod
+              ? "✅ Periodo Actual: Algoritmo del 10% aplicado"
+              : "✅ Período Anterior: Datos cargados como históricos"}
           </span>
         </div>
       )}

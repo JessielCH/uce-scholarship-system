@@ -1,18 +1,35 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Briefcase } from "lucide-react";
-import { useAdminMetrics } from "../../hooks/useScholarshipQueries";
+import {
+  useAdminMetrics,
+  useAcademicPeriods,
+} from "../../hooks/useScholarshipQueries";
 
 // Componentes Atomic Design
 import DashboardMetrics from "../../components/organisms/DashboardMetrics";
 import FunnelChart from "../../components/organisms/FunnelChart";
 import StatsCards from "../../components/organisms/StatsCards";
 import AcademicRankings from "../../components/organisms/AcademicRankings";
+import PeriodSelector from "../../components/molecules/PeriodSelector";
 import SkeletonLoader from "../../components/ui/SkeletonLoader";
 import Heading from "../../components/atoms/Heading";
 
 const AdminDashboard = () => {
+  const { data: periods } = useAcademicPeriods();
+  const [selectedPeriodId, setSelectedPeriodId] = useState(null);
+
+  // Set the current active period as default on load
+  useEffect(() => {
+    if (periods && selectedPeriodId === null) {
+      const currentPeriod = periods.find((p) => p.is_active);
+      if (currentPeriod) {
+        setSelectedPeriodId(currentPeriod.id);
+      }
+    }
+  }, [periods, selectedPeriodId]);
+
   // Custom hook para obtener métricas
-  const { data, isLoading } = useAdminMetrics();
+  const { data, isLoading } = useAdminMetrics(selectedPeriodId);
 
   if (isLoading) {
     return (
@@ -49,16 +66,17 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* HEADER*/}
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <Heading level="h1" size="xl" className="flex items-center gap-2">
             <Briefcase className="text-brand-blue" /> Control Estratégico
           </Heading>
           <p className="text-gray-500">Visión global del programa de becas.</p>
         </div>
-        <div className="bg-blue-50 text-brand-blue px-4 py-2 rounded-lg text-sm font-medium border border-blue-100">
-          Periodo Activo: {data.periodName}
-        </div>
+        <PeriodSelector
+          selectedPeriodId={selectedPeriodId}
+          onPeriodChange={setSelectedPeriodId}
+        />
       </div>
 
       {/* METRICS ORGANISMS - Componente Atomic Design */}
