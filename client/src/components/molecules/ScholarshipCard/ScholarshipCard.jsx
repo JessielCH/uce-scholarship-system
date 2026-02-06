@@ -18,8 +18,26 @@ import Button from "../../atoms/Button";
  * Reemplaza ScholarshipTableRow para mejor responsividad mobile
  */
 const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
+  const getStatusLabel = (status) => {
+    const labels = {
+      SELECTED: "✓ Becado",
+      EXCLUDED: "✗ Excluido",
+      DOCS_UPLOADED: "Docs. Cargados",
+      APPROVED: "Aprobado",
+      CONTRACT_GENERATED: "Contrato Generado",
+      CONTRACT_UPLOADED: "Contrato Cargado",
+      READY_FOR_PAYMENT: "Listo para Pago",
+      PAID: "Pagado",
+      CHANGES_REQUESTED: "Cambios Solicitados",
+      CONTRACT_REJECTED: "Contrato Rechazado",
+    };
+    return labels[status] || status;
+  };
+
   const getStatusColor = (status) => {
     const colors = {
+      SELECTED: "bg-green-50 border-green-200",
+      EXCLUDED: "bg-gray-50 border-gray-300",
       DOCS_UPLOADED: "bg-blue-50 border-blue-200",
       APPROVED: "bg-green-50 border-green-200",
       CONTRACT_GENERATED: "bg-purple-50 border-purple-200",
@@ -49,7 +67,7 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
           </p>
         </div>
         <Badge variant="default" className="text-xs">
-          {item.status}
+          {getStatusLabel(item.status)}
         </Badge>
       </div>
 

@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import Pagination from "../../components/molecules/Pagination";
 
 const IngestData = () => {
   const { user } = useAuth();
@@ -22,6 +23,8 @@ const IngestData = () => {
   const [stats, setStats] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const [previewPage, setPreviewPage] = useState(0);
+  const PREVIEW_ITEMS_PER_PAGE = 10;
 
   const { data: activePeriod } = useQuery({
     queryKey: ["activePeriod"],
@@ -49,6 +52,7 @@ const IngestData = () => {
       setPreviewData(processedData);
       setStats(stats);
       setUploadStatus(null);
+      setPreviewPage(0);
     };
     reader.readAsBinaryString(uploadedFile);
   };
@@ -243,6 +247,7 @@ const IngestData = () => {
                   setFile(null);
                   setPreviewData([]);
                   setStats(null);
+                  setPreviewPage(0);
                 }}
                 className="flex-1 sm:flex-none p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
               >
@@ -282,41 +287,46 @@ const IngestData = () => {
           <div className="flex items-center gap-2 px-2">
             <Info size={16} className="text-brand-blue" />
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-              Vista previa de resultados
+              Vista previa de resultados ({previewData.length} registros)
             </h3>
           </div>
 
           {/* Cards Mobile */}
           <div className="grid grid-cols-1 gap-3 md:hidden">
-            {previewData.slice(0, 10).map((row, i) => (
-              <div
-                key={i}
-                className={`p-4 rounded-2xl border ${row.is_selected ? "bg-green-50/50 border-green-100 shadow-sm" : "bg-white border-gray-100"}`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm font-black text-gray-900">
-                    {row.first_name} {row.last_name}
-                  </span>
-                  <span className="text-xs font-black text-brand-blue bg-white px-2 py-1 rounded-lg border border-gray-100">
-                    {row.average_grade}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500 font-medium truncate max-w-[150px]">
-                    {row.career}
-                  </span>
-                  {row.is_selected ? (
-                    <span className="text-[9px] font-black bg-green-600 text-white px-2 py-1 rounded-full uppercase italic">
-                      Seleccionado
+            {previewData
+              .slice(
+                previewPage * PREVIEW_ITEMS_PER_PAGE,
+                (previewPage + 1) * PREVIEW_ITEMS_PER_PAGE,
+              )
+              .map((row, i) => (
+                <div
+                  key={i}
+                  className={`p-4 rounded-2xl border ${row.is_selected ? "bg-green-50/50 border-green-100 shadow-sm" : "bg-white border-gray-100"}`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-black text-gray-900">
+                      {row.first_name} {row.last_name}
                     </span>
-                  ) : (
-                    <span className="text-[9px] font-bold text-gray-300 uppercase tracking-tighter">
-                      No elegible
+                    <span className="text-xs font-black text-brand-blue bg-white px-2 py-1 rounded-lg border border-gray-100">
+                      {row.average_grade}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-500 font-medium truncate max-w-[150px]">
+                      {row.career}
+                    </span>
+                    {row.is_selected ? (
+                      <span className="text-[9px] font-black bg-green-600 text-white px-2 py-1 rounded-full uppercase italic">
+                        Seleccionado
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-gray-300 uppercase tracking-tighter">
+                        No elegible
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {/* Tabla Desktop */}
@@ -339,36 +349,65 @@ const IngestData = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {previewData.slice(0, 10).map((row, i) => (
-                  <tr
-                    key={i}
-                    className={`hover:bg-gray-50/50 transition-colors ${row.is_selected ? "bg-green-50/20" : ""}`}
-                  >
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                      {row.first_name} {row.last_name}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">
-                      {row.career}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-black text-brand-blue">
-                      {row.average_grade}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {row.is_selected ? (
-                        <span className="px-3 py-1 text-[10px] font-black rounded-full bg-green-100 text-green-700 border border-green-200 uppercase italic">
-                          Seleccionado
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 font-bold text-[10px] uppercase">
-                          Excluido
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {previewData
+                  .slice(
+                    previewPage * PREVIEW_ITEMS_PER_PAGE,
+                    (previewPage + 1) * PREVIEW_ITEMS_PER_PAGE,
+                  )
+                  .map((row, i) => (
+                    <tr
+                      key={i}
+                      className={`hover:bg-gray-50/50 transition-colors ${row.is_selected ? "bg-green-50/20" : ""}`}
+                    >
+                      <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                        {row.first_name} {row.last_name}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-gray-500 font-medium">
+                        {row.career}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-brand-blue">
+                        {row.average_grade}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {row.is_selected ? (
+                          <span className="px-3 py-1 text-[10px] font-black rounded-full bg-green-100 text-green-700 border border-green-200 uppercase italic">
+                            Seleccionado
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 font-bold text-[10px] uppercase">
+                            Excluido
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {Math.ceil(previewData.length / PREVIEW_ITEMS_PER_PAGE) > 1 && (
+            <div className="pt-4">
+              <Pagination
+                currentPage={previewPage}
+                totalPages={Math.ceil(
+                  previewData.length / PREVIEW_ITEMS_PER_PAGE,
+                )}
+                onPrev={() => setPreviewPage((p) => Math.max(0, p - 1))}
+                onNext={() =>
+                  setPreviewPage((p) =>
+                    Math.min(
+                      Math.ceil(previewData.length / PREVIEW_ITEMS_PER_PAGE) -
+                        1,
+                      p + 1,
+                    ),
+                  )
+                }
+                onPageChange={setPreviewPage}
+                className="justify-center gap-1 text-xs"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

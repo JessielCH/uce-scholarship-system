@@ -33,6 +33,11 @@ const ScholarshipStatusCard = ({
 }) => {
   const STATUS_MAP = {
     SELECTED: { label: "Seleccionado", color: "text-blue-500", icon: Clock },
+    EXCLUDED: {
+      label: "No Seleccionado",
+      color: "text-gray-500",
+      icon: XCircle,
+    },
     DOCS_UPLOADED: {
       label: "Documentos en Revisión",
       color: "text-yellow-500",

@@ -75,12 +75,17 @@ async function runIngestion() {
       career: career,
       average_grade: parseFloat(row["Promedio"]),
       semester: parseInt(row["Semestre"]),
-      academic_condition: row["Condicion"], // Regular / No Regular
+      academic_condition: row["Condicion"] || "Regular", // Regular / No Regular (default: Regular)
     };
 
     const key = `${faculty}:::${career}`;
     if (!studentsByCareer[key]) studentsByCareer[key] = [];
     studentsByCareer[key].push(studentObj);
+  });
+
+  // Debug: Log primeros 3 estudiantes para verificar estructura
+  logger.debug("Ingestion", "Primeros estudiantes cargados:", {
+    sample: Object.values(studentsByCareer)[0]?.slice(0, 3),
   });
 
   // 4. PROCESS EACH CAREER
@@ -125,6 +130,18 @@ async function runIngestion() {
     const studentsInCareer = studentsByCareer[key];
     const processedStudents = applySelectionLogic(studentsInCareer);
 
+    // Debug: Show selection results
+    const selectedStudents = processedStudents.filter((s) => s.is_selected);
+    logger.debug("Ingestion", `Resultados de selección para ${careerName}`, {
+      totalProcessed: processedStudents.length,
+      selected: selectedStudents.length,
+      excluded: processedStudents.length - selectedStudents.length,
+      topGrades: selectedStudents.slice(0, 3).map((s) => ({
+        name: s.first_name,
+        grade: s.average_grade,
+      })),
+    });
+
     // C. Database Operations (Atomic per student usually, but lets batch for speed)
     let selectedCount = 0;
 
@@ -151,36 +168,32 @@ async function runIngestion() {
         continue;
       }
 
-      // C.2 Create Scholarship Selection (Only if selected or keep history of application?)
-      // Requirement says "Selection of Top 10%". Usually we only store the winners in the active process table
-      // OR we store everyone with a status "REJECTED_BY_SCORE".
-      // Let's store ONLY the SELECTED ones to keep the scholarship table clean,
-      // as per "El sistema NO recibe postulaciones... Seleccion del Top 10%".
+      // C.2 Create Scholarship Selection for ALL students (selected or excluded)
+      // This allows the system to track all students' status (SELECTED vs EXCLUDED)
+      const scholarshipStatus = student.is_selected ? "SELECTED" : "EXCLUDED";
 
-      if (student.is_selected) {
-        const { error: selError } = await supabase
-          .from("scholarship_selections")
-          .upsert(
-            {
-              student_id: studentDB.id,
-              period_id: PERIOD_ID,
-              career_id: carData.id,
-              average_grade: student.average_grade,
-              semester: student.semester,
-              academic_condition: student.academic_condition,
-              is_top_10: student.selection_details.is_top_10,
-              status: "SELECTED", // Initial status
-            },
-            { onConflict: "student_id, period_id" },
-          ); // Prevent duplicates
+      const { error: selError } = await supabase
+        .from("scholarship_selections")
+        .upsert(
+          {
+            student_id: studentDB.id,
+            period_id: PERIOD_ID,
+            career_id: carData.id,
+            average_grade: student.average_grade,
+            semester: student.semester,
+            academic_condition: student.academic_condition,
+            is_top_10: student.selection_details.is_top_10,
+            status: scholarshipStatus, // SELECTED or EXCLUDED
+          },
+          { onConflict: "student_id, period_id" },
+        ); // Prevent duplicates
 
-        if (!selError) selectedCount++;
-        else
-          logger.error("Ingestion", "Error creando selección", selError, {
-            studentId: studentDB.id,
-            carreerId: carData.id,
-          });
-      }
+      if (!selError && student.is_selected) selectedCount++;
+      else if (selError)
+        logger.error("Ingestion", "Error creando selección", selError, {
+          studentId: studentDB.id,
+          carreerId: carData.id,
+        });
     }
     logger.info("Ingestion", `Resumen de carrera: ${careerName}`, {
       selected: selectedCount,

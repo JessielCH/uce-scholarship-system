@@ -8,6 +8,11 @@ import { AlertCircle, CheckCircle, AlertTriangle, Info } from "lucide-react";
 const StatusBadge = ({ status, label, size = "md", className = "" }) => {
   const statusConfig = {
     SELECTED: { color: "text-blue-500", bg: "bg-blue-100", icon: Info },
+    EXCLUDED: {
+      color: "text-gray-500",
+      bg: "bg-gray-100",
+      icon: AlertCircle,
+    },
     DOCS_UPLOADED: {
       color: "text-yellow-500",
       bg: "bg-yellow-100",

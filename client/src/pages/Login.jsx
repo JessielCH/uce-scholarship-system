@@ -2,28 +2,18 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFormik } from "formik";
 import { z } from "zod"; // [SPRINT 4] Zod como fuente de verdad
+import {
+  loginSchema as centralLoginSchema,
+  signUpSchema as centralSignUpSchema,
+} from "@/schemas/authSchema";
 import { AlertCircle, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { logger } from "../utils/logger";
 
-// --- ESQUEMAS DE VALIDACIÓN CON ZOD ---
-const loginSchema = z.object({
-  email: z
-    .string()
-    .email("Email inválido")
-    .endsWith("@uce.edu.ec", "Debe ser correo institucional @uce.edu.ec"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
-});
-
-const signUpSchema = loginSchema
-  .extend({
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Las contraseñas no coinciden",
-    path: ["confirmPassword"],
-  });
+// --- ESQUEMAS DE VALIDACIÓN CON ZOD (centralizados) ---
+const loginSchema = centralLoginSchema;
+const signUpSchema = centralSignUpSchema;
 
 const Login = () => {
   const navigate = useNavigate();
