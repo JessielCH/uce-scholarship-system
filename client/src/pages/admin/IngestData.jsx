@@ -30,14 +30,14 @@ const IngestData = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
   const PREVIEW_ITEMS_PER_PAGE = 10;
 
-  // Debug: Log de autenticación
+  // Debug: Authentication log
   console.log("🔐 IngestData Auth:", {
     user: user?.email,
     role: user?.role,
     authLoading,
   });
 
-  // Esperar a que el auth cargue
+  // Wait for auth to load
   if (authLoading) {
     return (
       <div className="space-y-6 p-4 md:p-6 animate-fade-in">
@@ -48,29 +48,8 @@ const IngestData = () => {
       </div>
     );
   }
-
-  // Verificar que sea ADMIN o STAFF
   const userRole = user?.role;
   const isAuthorized = userRole === "ADMIN" || userRole === "STAFF";
-
-  if (!isAuthorized) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-        <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-        <h2 className="text-xl font-black text-red-900 mb-2">
-          Acceso Denegado
-        </h2>
-        <p className="text-red-700 mb-2">
-          Solo administradores y personal operativo pueden cargar datos de
-          becarios.
-        </p>
-        <p className="text-red-600 text-sm">
-          Tu rol actual:{" "}
-          <span className="font-bold">{userRole || "Sin definir"}</span>
-        </p>
-      </div>
-    );
-  }
 
   const selectedPeriod = periods?.find((p) => p.id === selectedPeriodId);
   const isCurrentPeriod = selectedPeriod?.is_active;
@@ -96,14 +75,14 @@ const IngestData = () => {
 
   const handleSaveToDB = async () => {
     if (!selectedPeriodId) {
-      alert("Error: Debes seleccionar un período académico.");
+      alert("Error: You must select an academic period.");
       return;
     }
 
     if (
       !isCurrentPeriod &&
       !window.confirm(
-        "⚠️ Este es un período anterior. Se cargarán todos como históricos (PAID).\n\n¿Estás seguro?",
+        "⚠️ This is a previous period. All records will be imported as historical (PAID).\n\nAre you sure?",
       )
     ) {
       return;
@@ -113,21 +92,19 @@ const IngestData = () => {
     setUploadStatus(null);
     console.group(
       isCurrentPeriod
-        ? "🚀 [AUDIT LOG] Ingesta de Período ACTUAL (Aplicando Algoritmo 10%)"
-        : "🚀 [AUDIT LOG] Ingesta de Período ANTERIOR (Histórico)",
+        ? "🚀 [AUDIT LOG] Importing CURRENT period (applying 10% algorithm)"
+        : "🚀 [AUDIT LOG] Importing PREVIOUS period (historical)",
     );
-    console.log("📌 INFORMACIÓN DEL PERÍODO:");
+    console.log("📌 PERIOD INFORMATION:");
     console.log(`   - ID: ${selectedPeriodId}`);
-    console.log(`   - Nombre: ${selectedPeriod?.name}`);
-    console.log(`   - ¿Es ACTUAL? ${isCurrentPeriod}`);
-    console.log(`   - Total registros a procesar: ${previewData.length}`);
+    console.log(`   - Name: ${selectedPeriod?.name}`);
+    console.log(`   - Is CURRENT? ${isCurrentPeriod}`);
+    console.log(`   - Total records to process: ${previewData.length}`);
 
     try {
-      // 1. SINCRONIZACIÓN DE ESTRUCTURA (FACULTADES)
+      // 1. STRUCTURE SYNCHRONIZATION (FACULTIES)
       const uniqueFaculties = [...new Set(previewData.map((s) => s.faculty))];
-      console.log(
-        `\n✅ FACULTADES: ${uniqueFaculties.length} únicas encontradas`,
-      );
+      console.log(`\n✅ FACULTIES: ${uniqueFaculties.length} unique found`);
       for (const fName of uniqueFaculties) {
         await supabase
           .from("faculties")
@@ -137,7 +114,7 @@ const IngestData = () => {
         .from("faculties")
         .select("id, name");
 
-      // 2. SINCRONIZACIÓN DE ESTRUCTURA (CARRERAS)
+      // 2. STRUCTURE SYNCHRONIZATION (CAREERS)
       const uniqueCareers = [];
       const careerMap = new Set();
       previewData.forEach((s) => {
@@ -149,7 +126,7 @@ const IngestData = () => {
           }
         }
       });
-      console.log(`✅ CARRERAS: ${uniqueCareers.length} únicas encontradas`);
+      console.log(`✅ CAREERS: ${uniqueCareers.length} unique found`);
       await supabase
         .from("careers")
         .upsert(uniqueCareers, { onConflict: "name" });
@@ -172,9 +149,7 @@ const IngestData = () => {
       if (stuError)
         throw new Error(`Error en tabla students: ${stuError.message}`);
 
-      console.log(
-        `✅ ESTUDIANTES: ${savedStudents?.length} registrados/actualizados`,
-      );
+      console.log(`✅ STUDENTS: ${savedStudents?.length} inserted/updated`);
 
       const emailToIdMap = {};
       const nationalIdToIdMap = {};
@@ -209,11 +184,11 @@ const IngestData = () => {
             };
           })
           .filter(Boolean);
-        console.log(`\n📊 PERÍODO ACTUAL - ALGORITMO 10%:`);
-        console.log(`   - Total becarios TOP 10%: ${selectionsPayload.length}`);
-        console.log(`   - Status a guardar: SELECTED`);
+        console.log(`\n📊 CURRENT PERIOD - 10% ALGORITHM:`);
+        console.log(`   - Total TOP 10% scholars: ${selectionsPayload.length}`);
+        console.log(`   - Status to save: SELECTED`);
       } else {
-        // PERÍODO ANTERIOR: Todos como históricos PAID
+        // PREVIOUS PERIOD: All as historical PAID
         selectionsPayload = previewData
           .map((s) => {
             const studentId = nationalIdToIdMap[String(s.national_id)];
@@ -232,15 +207,15 @@ const IngestData = () => {
             };
           })
           .filter(Boolean);
-        console.log(`\n📚 PERÍODO ANTERIOR - HISTÓRICO:`);
+        console.log(`\n📚 PREVIOUS PERIOD - HISTORICAL:`);
         console.log(
-          `   - Total becarios cargados: ${selectionsPayload.length}`,
+          `   - Total scholars imported: ${selectionsPayload.length}`,
         );
-        console.log(`   - Status a guardar: PAID`);
+        console.log(`   - Status to save: PAID`);
       }
 
       if (selectionsPayload.length > 0) {
-        console.log(`\n⏳ Guardando en ED...`);
+        console.log(`\n⏳ Saving to DB...`);
         const { data: insertedData, error: selError } = await supabase
           .from("scholarship_selections")
           .upsert(selectionsPayload, { onConflict: "student_id, period_id" })
@@ -251,10 +226,8 @@ const IngestData = () => {
             `Error en scholarship_selections: ${selError.message}`,
           );
 
-        console.log(`\n✅ GUARDADO EXITOSO EN BD:`);
-        console.log(
-          `   - Registros insertados/actualizados: ${insertedData?.length}`,
-        );
+        console.log(`\n✅ SUCCESSFUL SAVE TO DB:`);
+        console.log(`   - Records inserted/updated: ${insertedData?.length}`);
         const statusCount = {
           SELECTED:
             insertedData?.filter((r) => r.status === "SELECTED").length || 0,
@@ -262,7 +235,7 @@ const IngestData = () => {
         };
         console.log(`   - SELECTED: ${statusCount.SELECTED}`);
         console.log(`   - PAID: ${statusCount.PAID}`);
-        console.log(`   - Period ID guardado: ${selectedPeriodId}`);
+        console.log(`   - Saved period ID: ${selectedPeriodId}`);
       }
 
       setUploadStatus("success");

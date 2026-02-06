@@ -6,7 +6,7 @@ import RejectionModal from "../RejectionModal";
 
 /**
  * MOLECULE: ActionButtons
- * Botones de acción contextuales según el estado de la beca
+ * Context-dependent action buttons based on scholarship status
  * Soporta: DOCS_UPLOADED, APPROVED, CONTRACT_UPLOADED, READY_FOR_PAYMENT, PAID
  */
 const ActionButtons = ({

@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle, AlertTriangle, Info } from "lucide-react";
 
 /**
  * MOLECULE: StatusBadge
- * Badge con estado y colores según status de beca
+ * Badge with status and colors based on scholarship status
  */
 const StatusBadge = ({ status, label, size = "md", className = "" }) => {
   const statusConfig = {

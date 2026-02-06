@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  server:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      # Add other env vars (DB, SUPABASE keys) here or use an env_file
+    networks:
+      - appnet
+
+  client:
+    build: ./client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge

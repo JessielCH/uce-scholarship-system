@@ -9,7 +9,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      // Aumenta el staleTime para que no intente cargar
+      // Increase staleTime to prevent trying to load
       // CADA VEZ que cambias de pestaña si han pasado menos de 30 segundos
       staleTime: 1000 * 30,
       refetchOnWindowFocus: true,

@@ -177,8 +177,8 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
                         if (error) throw error;
                         window.open(urlData.signedUrl, "_blank");
                       } catch (e) {
-                        console.error("Error al descargar:", e);
-                        alert("No se pudo descargar el documento");
+                        console.error("Error downloading:", e);
+                        alert("Could not download document");
                       }
                     }}
                     className="ml-2 flex-shrink-0"

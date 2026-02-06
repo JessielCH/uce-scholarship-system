@@ -1,6 +1,6 @@
 /**
  * AUDIT LOGS DASHBOARD - SPRINT 17
- * Visualiza todas las acciones registradas para compliance y debugging
+ * Displays all recorded actions for compliance and debugging
  */
 
 import { useEffect, useState } from "react";
@@ -28,13 +28,13 @@ const AuditLogsDashboard = () => {
 
   const debouncedFilters = useDebounce(filters, 500);
 
-  // Cargar audit logs
+  // Load audit logs
   const fetchAuditLogs = async () => {
     try {
       setLoading(true);
       let query = supabase.from("audit_logs").select("*", { count: "exact" });
 
-      // Aplicar filtros
+      // Apply filters
       if (debouncedFilters.action) {
         query = query.eq("action", debouncedFilters.action);
       }
@@ -57,7 +57,7 @@ const AuditLogsDashboard = () => {
         query = query.eq("user_id", debouncedFilters.userId);
       }
 
-      // Paginación y orden
+      // Pagination and order
       const offset = (pagination.currentPage - 1) * pagination.pageSize;
       const {
         data,
@@ -70,34 +70,34 @@ const AuditLogsDashboard = () => {
       if (queryError) throw queryError;
 
       setLogs(data || []);
-      logger.info("AuditLogs", "Logs cargados", {
+      logger.info("AuditLogs", "Logs loaded", {
         count: data?.length,
         totalCount: count,
       });
       setError(null);
     } catch (err) {
-      logger.error("AuditLogs", "Error cargando logs", err);
+      logger.error("AuditLogs", "Error loading logs", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Cargar logs cuando cambien filtros
+  // Load logs when filters change
   useEffect(() => {
     setPagination({ ...pagination, currentPage: 1 });
   }, [debouncedFilters]);
 
-  // Cargar logs
+  // Load logs
   useEffect(() => {
     fetchAuditLogs();
   }, [debouncedFilters, pagination]);
 
-  // Exportar logs (CSV)
+  // Export logs (CSV)
   const handleExport = () => {
     try {
       const csv = [
-        ["Acción", "Entidad", "ID Entidad", "Usuario", "Fecha", "Detalles"],
+        ["Action", "Entity", "Entity ID", "User", "Date", "Details"],
         ...logs.map((log) => [
           log.action,
           log.target_entity,
@@ -116,7 +116,7 @@ const AuditLogsDashboard = () => {
       link.download = `audit-logs-${format(new Date(), "yyyy-MM-dd-HHmmss")}.csv`;
       link.click();
 
-      logger.info("AuditLogs", "Logs exportados a CSV", {
+      logger.info("AuditLogs", "Logs exported to CSV", {
         rowCount: logs.length,
       });
     } catch (err) {

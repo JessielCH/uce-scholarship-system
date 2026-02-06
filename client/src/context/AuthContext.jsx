@@ -16,11 +16,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Función para cargar perfil con logs detallados
+  // Function to load profile with detailed logs
   const fetchProfile = useCallback(async (authUser) => {
     if (!authUser) return null;
 
-    logger.info("AuthContext", "Cargando perfil de usuario", {
+    logger.info("AuthContext", "Loading user profile", {
       userId: authUser.id,
       email: authUser.email,
     });
@@ -35,16 +35,16 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       if (data) {
-        logger.debug("AuthContext", "Perfil recuperado", {
+        logger.debug("AuthContext", "Profile retrieved", {
           role: data.role,
           fullName: data.full_name,
         });
       } else {
-        logger.debug("AuthContext", "No se encontró perfil extendido en DB");
+        logger.debug("AuthContext", "No extended profile found in database");
       }
       return data;
     } catch (err) {
-      logger.error("AuthContext", "Error cargando perfil", err);
+      logger.error("AuthContext", "Error loading profile", err);
       return null;
     }
   }, []);
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     let mounted = true;
 
     async function initialize() {
-      logger.info("AuthContext", "Inicializando sistema de autenticación");
+      logger.info("AuthContext", "Initializing authentication system");
 
       try {
         const {
@@ -62,23 +62,23 @@ export const AuthProvider = ({ children }) => {
         } = await supabase.auth.getSession();
 
         if (error) {
-          logger.error("AuthContext", "Sesión corrupta detectada", error);
+          logger.error("AuthContext", "Corrupted session detected", error);
           await supabase.auth.signOut();
           throw error;
         }
 
         if (mounted) {
           if (initialSession) {
-            logger.debug("AuthContext", "Sesión activa encontrada");
+            logger.debug("AuthContext", "Active session found");
             const profile = await fetchProfile(initialSession.user);
             setSession(initialSession);
             setUser({ ...initialSession.user, ...profile });
           } else {
-            logger.debug("AuthContext", "No hay sesión activa");
+            logger.debug("AuthContext", "No active session");
           }
         }
       } catch (error) {
-        logger.error("AuthContext", "Error en inicialización", error);
+        logger.error("AuthContext", "Error during initialization", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -91,18 +91,18 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
-      logger.debug("AuthContext", `Evento de Auth: ${event}`, {
+      logger.debug("AuthContext", `Auth event: ${event}`, {
         timestamp: new Date().toISOString(),
       });
 
       if (newSession?.access_token !== session?.access_token) {
         if (newSession) {
-          logger.debug("AuthContext", "Actualizando datos de usuario y perfil");
+          logger.debug("AuthContext", "Updating user data and profile");
           const profile = await fetchProfile(newSession.user);
           setSession(newSession);
           setUser({ ...newSession.user, ...profile });
         } else {
-          logger.debug("AuthContext", "Usuario desconectado");
+          logger.debug("AuthContext", "User logged out");
           setSession(null);
           setUser(null);
         }

@@ -26,7 +26,7 @@ const PeriodActivationManager = () => {
     setStatus({ type: "", message: "" });
 
     try {
-      // 1. Desactivar todos los períodos
+      // 1. Deactivate all periods
       const { error: deactivateError } = await supabase
         .from("academic_periods")
         .update({ is_active: false })

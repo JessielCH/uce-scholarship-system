@@ -7,8 +7,8 @@ const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 
 /**
- * Envía una notificación de actualización de estado utilizando EmailJS.
- * Ajustado para coincidir con la configuración: To Email {{email}} y From Name {{name}}
+ * Sends a status update notification using EmailJS.
+ * Adjusted to match configuration: To Email {{email}} and From Name {{name}}
  */
 export const sendNotification = async (
   toName,
@@ -26,25 +26,25 @@ export const sendNotification = async (
 
   try {
     const templateParams = {
-      name: toName, // Mapeado a {{name}} en tu configuración de EmailJS
-      email: toEmail, // Mapeado a {{email}} en tu configuración de EmailJS
-      status: newStatus, // Para el badge de la plantilla {{status}}
-      notes: notes || "Sin observaciones adicionales.", // Para {{notes}}
-      action_url: APP_URL, // Para el link del botón {{action_url}}
+      name: toName, // Mapped to {{name}} in your EmailJS configuration
+      email: toEmail, // Mapped to {{email}} in your EmailJS configuration
+      status: newStatus, // For the template badge {{status}}
+      notes: notes || "No additional observations.", // For {{notes}}
+      action_url: APP_URL, // For the button link {{action_url}}
       date: new Date().toLocaleDateString(),
     };
 
     console.log(
-      `📧 Enviando correo a ${toEmail} ({{email}}) como ${toName} ({{name}})...`,
+      `📧 Sending email to ${toEmail} ({{email}}) as ${toName} ({{name}})...`,
     );
 
-    // Ejecución del envío
+    // Send execution
     await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
 
-    console.log("✅ Correo enviado con éxito a través de EmailJS");
+    console.log("✅ Email successfully sent via EmailJS");
     return true;
   } catch (error) {
-    console.error("❌ Error al enviar el correo:", error);
+    console.error("❌ Error sending email:", error);
     return false;
   }
 };

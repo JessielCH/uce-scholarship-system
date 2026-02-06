@@ -2,7 +2,7 @@
 import { logger } from "./logger";
 
 export const processScholarshipFile = (rawData) => {
-  logger.info("ScholarshipLogic", "Iniciando ejecución del algoritmo", {
+  logger.info("ScholarshipLogic", "Starting algorithm execution", {
     rowCount: rawData.length,
   });
 
@@ -22,7 +22,7 @@ export const processScholarshipFile = (rawData) => {
     .filter((s) => {
       const isValid = s.university_email.includes("@uce.edu.ec");
       if (!isValid && s.university_email) {
-        logger.warn("ScholarshipLogic", "Email descartado (no institucional)", {
+        logger.warn("ScholarshipLogic", "Email discarded (not institutional)", {
           email: s.university_email,
         });
       }
@@ -43,7 +43,7 @@ export const processScholarshipFile = (rawData) => {
     careers: Object.keys(studentsByCareer).length,
   };
 
-  logger.debug("ScholarshipLogic", "Carreras detectadas", {
+  logger.debug("ScholarshipLogic", "Careers detected", {
     count: stats.careers,
   });
 
@@ -51,7 +51,7 @@ export const processScholarshipFile = (rawData) => {
   Object.keys(studentsByCareer).forEach((career) => {
     const group = studentsByCareer[career];
 
-    logger.info("ScholarshipLogic", `Procesando carrera: ${career}`, {
+    logger.info("ScholarshipLogic", `Processing career: ${career}`, {
       totalStudents: group.length,
     });
 
@@ -59,7 +59,7 @@ export const processScholarshipFile = (rawData) => {
     const regulars = group.filter(
       (s) => s.academic_condition.toLowerCase() === "regular",
     );
-    logger.debug("ScholarshipLogic", "Estudiantes regulares", {
+    logger.debug("ScholarshipLogic", "Regular students", {
       count: regulars.length,
     });
 
@@ -73,7 +73,7 @@ export const processScholarshipFile = (rawData) => {
         ? regulars[cutoffCount - 1].average_grade
         : 999;
 
-    logger.debug("ScholarshipLogic", "Cálculo de corte", {
+    logger.debug("ScholarshipLogic", "Cutoff calculation", {
       targetCount: cutoffCount,
       cutoffGrade,
     });
@@ -93,7 +93,7 @@ export const processScholarshipFile = (rawData) => {
 
       if (isSelected) {
         stats.selected++;
-        logger.debug("ScholarshipLogic", "Estudiante seleccionado", {
+        logger.debug("ScholarshipLogic", "Student selected", {
           name: `${student.first_name} ${student.last_name}`,
           grade: student.average_grade,
         });
@@ -109,7 +109,7 @@ export const processScholarshipFile = (rawData) => {
     });
   });
 
-  logger.info("ScholarshipLogic", "Resumen del proceso", {
+  logger.info("ScholarshipLogic", "Process summary", {
     totalProcessed: stats.total,
     totalSelected: stats.selected,
     selectionRate: `${((stats.selected / stats.total) * 100).toFixed(2)}%`,

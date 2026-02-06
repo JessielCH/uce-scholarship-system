@@ -20,14 +20,14 @@ const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
-  // Custom hook para obtener datos
+  // Custom hook to get data
   const {
     data,
     isLoading: queryLoading,
     refetch,
   } = useStudentDashboardData(user?.email, !authLoading);
 
-  // REALTIME: Escuchar cambios de estado en vivo
+  // REALTIME: Listen to real-time status changes
   useEffect(() => {
     if (!data?.scholarship?.id) return;
 

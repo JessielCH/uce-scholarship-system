@@ -12,7 +12,7 @@ import {
 
 /**
  * ORGANISM: FunnelChart
- * Visualiza el embudo de solicitudes de becas (funnel/conversion data)
+ * Visualizes the scholarship request funnel (funnel/conversion data)
  * Reemplaza JSX inline en AdminDashboard
  */
 const FunnelChart = ({ funnel }) => {

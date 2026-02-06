@@ -13,13 +13,13 @@ const __dirname = path.dirname(__filename);
 const FILE_NAME = "../data/students_mock.xlsx"; // Ensure this file exists
 
 async function runIngestion() {
-  logger.info("Ingestion", "Iniciando proceso de ingesta de becas");
+  logger.info("Ingestion", "Starting scholarship ingestion process");
 
   // 1. SETUP ACADEMIC PERIOD
   // In a real app, this comes from UI. Here we hardcode or find active.
   const PERIOD_NAME = "2025-2026 Semestre 1";
 
-  logger.debug("Ingestion", "Buscando período académico", {
+  logger.debug("Ingestion", "Looking for academic period", {
     periodName: PERIOD_NAME,
   });
   let { data: period, error: periodError } = await supabase
@@ -29,7 +29,7 @@ async function runIngestion() {
     .single();
 
   if (!period) {
-    logger.info("Ingestion", "Creando nuevo período académico", {
+    logger.info("Ingestion", "Creating new academic period", {
       periodName: PERIOD_NAME,
     });
     const { data: newPeriod } = await supabase
@@ -48,12 +48,12 @@ async function runIngestion() {
 
   // 2. READ EXCEL
   const filePath = path.join(__dirname, FILE_NAME);
-  logger.info("Ingestion", "Leyendo archivo de datos", { filePath });
+  logger.info("Ingestion", "Reading data file", { filePath });
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-  logger.info("Ingestion", "Datos cargados del Excel", {
+  logger.info("Ingestion", "Data loaded from Excel", {
     rowCount: rawData.length,
   });
 
@@ -83,15 +83,15 @@ async function runIngestion() {
     studentsByCareer[key].push(studentObj);
   });
 
-  // Debug: Log primeros 3 estudiantes para verificar estructura
-  logger.debug("Ingestion", "Primeros estudiantes cargados:", {
+  // Debug: Log first 3 students to verify structure
+  logger.debug("Ingestion", "First students loaded:", {
     sample: Object.values(studentsByCareer)[0]?.slice(0, 3),
   });
 
   // 4. PROCESS EACH CAREER
   for (const key of Object.keys(studentsByCareer)) {
     const [facultyName, careerName] = key.split(":::");
-    logger.info("Ingestion", `Procesando carrera: ${careerName}`, {
+    logger.info("Ingestion", `Processing career: ${careerName}`, {
       faculty: facultyName,
       studentCount: studentsByCareer[key].length,
     });
@@ -173,10 +173,17 @@ async function runIngestion() {
 
         if (stuError) {
           // Handle duplicate key error (race condition)
-          if (stuError.code === "23505" || stuError.message?.includes("duplicate key")) {
-            logger.warn("Ingestion", `Email duplicado detectado (race condition), buscando estudiante`, {
-              email: student.university_email,
-            });
+          if (
+            stuError.code === "23505" ||
+            stuError.message?.includes("duplicate key")
+          ) {
+            logger.warn(
+              "Ingestion",
+              `Duplicate email detected (race condition), searching for student`,
+              {
+                email: student.university_email,
+              },
+            );
 
             const { data: duplicateStudent } = await supabase
               .from("students")
@@ -188,25 +195,30 @@ async function runIngestion() {
               studentDB = duplicateStudent;
               stuError = null;
             } else {
-              logger.error("Ingestion", `No se pudo resolver email duplicado`, stuError, {
-                email: student.university_email,
-              });
+              logger.error(
+                "Ingestion",
+                `Could not resolve duplicate email`,
+                stuError,
+                {
+                  email: student.university_email,
+                },
+              );
               continue;
             }
           } else {
-            logger.error("Ingestion", `Error insertando estudiante`, stuError, {
+            logger.error("Ingestion", `Error inserting student`, stuError, {
               email: student.university_email,
             });
             continue;
           }
         } else {
-          logger.debug("Ingestion", `Estudiante nuevo creado`, {
+          logger.debug("Ingestion", `New student created`, {
             email: student.university_email,
             id: studentDB.id,
           });
         }
       } else {
-        logger.debug("Ingestion", `Estudiante existente reutilizado`, {
+        logger.debug("Ingestion", `Existing student reused`, {
           email: student.university_email,
           id: existingStudent.id,
         });
@@ -239,7 +251,7 @@ async function runIngestion() {
           carreerId: carData.id,
         });
     }
-    logger.info("Ingestion", `Resumen de carrera: ${careerName}`, {
+    logger.info("Ingestion", `Career summary: ${careerName}`, {
       selected: selectedCount,
       total: studentsInCareer.length,
     });

@@ -13,7 +13,7 @@ import Alert from "../../atoms/Alert";
  * ORGANISM: BankUploadModal
  * Modal complejo para subir certificado bancario con OCR
  * Integra: FileUploadZone, Button, validación de archivo
- * Lógica: OCR, upload a storage, registro en BD, actualización de estado
+ * Logic: OCR, upload to storage, database record, status update
  */
 const BankUploadModal = ({ studentId, selectionId, onClose, onSuccess }) => {
   const { user } = useAuth();

@@ -31,7 +31,7 @@ const GuestDashboard = () => {
 
   useEffect(() => {
     async function fetchPublicData() {
-      // 1. Contar Becarios Totales (Solo aprobados/pagados para transparencia)
+      // 1. Count Total Scholarship Students (Only approved/paid for transparency)
       const { count: scholarCount } = await supabase
         .from("scholarship_selections")
         .select("*", { count: "exact", head: true })
@@ -115,7 +115,7 @@ const GuestDashboard = () => {
         careers,
       });
 
-      // Datos ficticios para gráfico de tendencia
+      // Mock data for trend chart
       setChartData([
         { name: "Ene", value: 120 },
         { name: "Feb", value: 300 },

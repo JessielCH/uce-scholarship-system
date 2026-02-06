@@ -64,7 +64,7 @@ const StaffDashboard = () => {
     }
   }, [data]);
 
-  // Datos para los gráficos
+  // Data for graphs
   const barData = [
     { name: "Revisión Docs", count: stats.pendingDocs, color: "#F59E0B" }, // Amarillo
     { name: "Contratos", count: stats.pendingContracts, color: "#3B82F6" }, // Azul

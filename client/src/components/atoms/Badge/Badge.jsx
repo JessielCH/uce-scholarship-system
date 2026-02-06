@@ -2,7 +2,7 @@ import React from "react";
 
 /**
  * ATOM: Badge
- * Insignia para estados y etiquetas.
+ * Badge for statuses and labels.
  * Variantes: default, success, warning, error, info
  */
 const Badge = ({

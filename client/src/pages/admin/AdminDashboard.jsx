@@ -28,7 +28,7 @@ const AdminDashboard = () => {
     }
   }, [periods, selectedPeriodId]);
 
-  // Custom hook para obtener métricas
+  // Custom hook to get metrics
   const { data, isLoading } = useAdminMetrics(selectedPeriodId);
 
   if (isLoading) {

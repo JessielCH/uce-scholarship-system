@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/shared/ErrorBoundary";
 import "./index.css";
 
 // --- Page Imports ---
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 
 // Student Pages
@@ -33,14 +34,15 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* 0. Home Page - Pública */}
+            <Route path="/" element={<Home />} />
+
             {/* 1. Rutas Públicas */}
             <Route path="/login" element={<Login />} />
 
             {/* 2. Rutas Protegidas (Estudiantes) */}
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              {/* Redirección por defecto a dashboard si entran a raíz */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Route>
 
             {/* 3. Rutas de INVITADOS (Portal de Transparencia) */}
@@ -71,7 +73,7 @@ function App() {
             </Route>
 
             {/* 5. Fallback 404 */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>

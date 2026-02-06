@@ -16,7 +16,7 @@ const staffSchema = z.object({
   email: z
     .string()
     .email("Email inválido")
-    .endsWith("@uce.edu.ec", "El correo debe ser institucional (@uce.edu.ec)"),
+    .endsWith("@uce.edu.ec", "Email must be institutional (@uce.edu.ec)"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   fullName: z.string().min(3, "El nombre es demasiado corto"),
   role: z
@@ -74,17 +74,17 @@ app.use(express.json());
  * description: Validation error or creation failure
  */
 app.post("/api/admin/create-staff", async (req, res) => {
-  console.group(`👤 [ADMIN ACTION] Intento de creación de Staff`);
+  console.group(`👤 [ADMIN ACTION] Attempt to create staff`);
 
   try {
-    // 1. [SPRINT 4] VALIDACIÓN CON ZOD
-    // Si los datos no cumplen el esquema, lanza una excepción automáticamente
+    // 1. [SPRINT 4] VALIDATION WITH ZOD
+    // If data doesn't meet the schema, throws an exception automatically
     const validatedData = staffSchema.parse(req.body);
     const { email, password, fullName, role } = validatedData;
 
-    console.log(`Datos validados para: ${email}`);
+    console.log(`Data validated for: ${email}`);
 
-    // 2. CREACIÓN EN SUPABASE AUTH
+    // 2. CREATE IN SUPABASE AUTH
     const { data: authData, error: authError } =
       await supabase.auth.admin.createUser({
         email,
@@ -113,7 +113,7 @@ app.post("/api/admin/create-staff", async (req, res) => {
     );
 
     if (profileError) {
-      console.error("⚠️ Error vinculando perfil:", profileError.message);
+      console.error("⚠️ Error linking profile:", profileError.message);
     } else {
       console.log(`✅ Perfil sincronizado con rol: ${role}`);
     }
@@ -128,7 +128,7 @@ app.post("/api/admin/create-staff", async (req, res) => {
 
     // [SPRINT 4] Manejo específico de errores de Zod
     if (error instanceof z.ZodError) {
-      console.error("❌ Error de validación Zod:", error.errors);
+      console.error("❌ Zod validation error:", error.errors);
       return res.status(400).json({
         error: "Error de validación",
         details: error.errors.map((err) => ({
@@ -138,7 +138,7 @@ app.post("/api/admin/create-staff", async (req, res) => {
       });
     }
 
-    console.error("❌ Error crítico:", error.message);
+    console.error("❌ Critical error:", error.message);
     res.status(400).json({ error: error.message });
   }
 });
@@ -147,7 +147,7 @@ app.post("/api/admin/create-staff", async (req, res) => {
  * @openapi
  * /api/auth/verify-student:
  * post:
- * summary: Verificar si un email pertenece a un estudiante becado
+ * summary: Verify if an email belongs to a scholarship student
  * tags: [Auth]
  * requestBody:
  * required: true
@@ -170,14 +170,14 @@ app.post("/api/auth/verify-student", async (req, res) => {
     const { email } = req.body;
 
     if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Email requerido" });
+      return res.status(400).json({ error: "Email required" });
     }
 
-    // Normalizar email: minúsculas y trim
+    // Normalize email: lowercase and trim
     const normalizedEmail = email.trim().toLowerCase();
-    console.log(`🔍 Buscando estudiante con email: ${normalizedEmail}`);
+    console.log(`🔍 Looking for student with email: ${normalizedEmail}`);
 
-    // Buscar en la tabla de estudiantes por university_email (campo UNIQUE)
+    // Search in students table by university_email (UNIQUE field)
     const { data: student, error } = await supabase
       .from("students")
       .select("id, first_name, last_name, national_id, university_email")
@@ -185,21 +185,21 @@ app.post("/api/auth/verify-student", async (req, res) => {
       .maybeSingle();
 
     if (error) {
-      console.error("❌ Error Supabase:", error);
+      console.error("❌ Supabase error:", error);
       return res.status(500).json({
-        error: "Error al verificar estudiante",
+        error: "Error verifying student",
         details: error.message,
       });
     }
 
     if (student) {
-      console.log(`✅ Estudiante becado encontrado: ${normalizedEmail}`);
+      console.log(`✅ Scholarship student found: ${normalizedEmail}`);
       console.log(
-        `   Datos: ${student.first_name} ${student.last_name} (${student.national_id})`,
+        `   Data: ${student.first_name} ${student.last_name} (${student.national_id})`,
       );
       return res.status(200).json({
         isBecado: true,
-        message: "Estudiante becado encontrado",
+        message: "Scholarship student found",
         student: {
           id: student.id,
           fullName: `${student.first_name} ${student.last_name}`,
@@ -209,13 +209,15 @@ app.post("/api/auth/verify-student", async (req, res) => {
       });
     }
 
-    console.log(`⚠️ Email no encontrado en BD de becados: ${normalizedEmail}`);
+    console.log(
+      `⚠️ Email not found in scholarship students database: ${normalizedEmail}`,
+    );
     res.status(404).json({
       isBecado: false,
-      message: "Este correo no está registrado como estudiante becado",
+      message: "This email is not registered as a scholarship student",
     });
   } catch (error) {
-    console.error("❌ Error crítico:", error);
+    console.error("❌ Critical error:", error);
     res
       .status(500)
       .json({ error: "Error del servidor", details: error.message });

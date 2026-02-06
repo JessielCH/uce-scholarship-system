@@ -1,13 +1,13 @@
 /**
- * LOGGER CENTRALIZADO - SERVER (SPRINT 16)
- * Sistema único de logging para toda la API
- * Compatible con Node.js
+ * CENTRALIZED LOGGER - SERVER (SPRINT 16)
+ * Single logging system for the entire API
+ * Compatible with Node.js
  */
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
 /**
- * Formatea entry de log estructurado
+ * Formats structured log entry
  */
 const formatLog = (level, context, message, data) => ({
   timestamp: new Date().toISOString(),
@@ -18,12 +18,12 @@ const formatLog = (level, context, message, data) => ({
 });
 
 /**
- * Imprime log en consola
+ * Prints log to console
  */
 const printLog = (level, context, message, data) => {
-  if (!isDevelopment && level === "DEBUG") return; // No DEBUG en producción
+  if (!isDevelopment && level === "DEBUG") return; // No DEBUG in production
 
-  const timestamp = new Date().toLocaleTimeString("es-EC");
+  const timestamp = new Date().toLocaleTimeString("en-US");
 
   const icons = {
     DEBUG: "🔍",
@@ -46,7 +46,7 @@ const printLog = (level, context, message, data) => {
 };
 
 /**
- * Sistema centralizado de logging para servidor
+ * Centralized logging system for server
  */
 export const logger = {
   debug: (context, message, data) => {
@@ -74,7 +74,7 @@ export const logger = {
       ...data,
     });
 
-    const timestamp = new Date().toLocaleTimeString("es-EC");
+    const timestamp = new Date().toLocaleTimeString("en-US");
     const prefix = `[ERROR] ${context} — ${timestamp}`;
 
     let output = `❌ ${prefix}\n  ${message}`;

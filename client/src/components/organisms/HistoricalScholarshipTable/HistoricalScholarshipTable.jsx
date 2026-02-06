@@ -13,8 +13,8 @@ import PeriodSelector from "../../molecules/PeriodSelector";
 
 /**
  * ORGANISM: HistoricalScholarshipTable
- * Tabla de becarios históricos (períodos pasados)
- * Permite filtrar por período anterior e incluye todos los status
+ * Table of historical scholarship students (past periods)
+ * Allows filtering by previous period and includes all statuses
  */
 const ITEMS_PER_PAGE = 20;
 
@@ -178,7 +178,7 @@ const HistoricalScholarshipTable = () => {
 
   // Debug: Log total de registros
   console.log(
-    `📊 HISTÓRICO - Total de becarios: ${totalCount}, Página: ${page + 1}/${totalPages}`,
+    `📈 HISTORICAL - Total scholarship students: ${totalCount}, Page: ${page + 1}/${totalPages}`,
   );
   console.log(`📄 Registros en página actual: ${scholars?.length || 0}`);
 
@@ -220,7 +220,7 @@ const HistoricalScholarshipTable = () => {
       });
     } catch (error) {
       console.error("Error updating status:", error);
-      alert("Error al actualizar el estado");
+      alert("Error updating status");
     } finally {
       setProcessingId(null);
     }
@@ -254,7 +254,7 @@ const HistoricalScholarshipTable = () => {
           />
         </div>
 
-        {/* Búsqueda */}
+        {/* Search */}
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-3">
             🔍 Buscar Becario

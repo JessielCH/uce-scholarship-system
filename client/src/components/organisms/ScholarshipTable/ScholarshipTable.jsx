@@ -12,9 +12,9 @@ import ScholarshipCard from "../../molecules/ScholarshipCard";
 
 /**
  * ORGANISM: ScholarshipTable
- * Tabla completa de becarios con búsqueda, filtrado, paginación y acciones
- * Integra: Input (search), Pagination, Button (acciones), SkeletonLoader
- * Lógica: Queries, Mutations, Realtime subscriptions
+ * Complete table of scholarship students with search, filtering, pagination and actions
+ * Integrates: Input (search), Pagination, Button (actions), SkeletonLoader
+ * Logic: Queries, Mutations, Realtime subscriptions
  */
 const ITEMS_PER_PAGE = 20;
 

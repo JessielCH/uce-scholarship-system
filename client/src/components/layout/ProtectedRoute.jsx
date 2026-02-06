@@ -6,8 +6,8 @@ import { useAuth } from "../../context/AuthContext";
 export const ProtectedRoute = () => {
   const { user, loading } = useAuth();
 
-  // ⚠️ CAMBIO CLAVE: Si ya hay un usuario (user), ignora el estado loading.
-  // Solo muestra el spinner si está cargando Y aún no sabemos quién es el usuario.
+  // ⚠️ KEY CHANGE: If there is already a user, ignore the loading state.
+  // Only show spinner if loading AND we don't know who the user is yet.
   if (loading && !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">

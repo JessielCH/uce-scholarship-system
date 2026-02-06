@@ -25,12 +25,12 @@ const AdminLayout = () => {
     navigate("/login");
   };
 
-  // Translated navigation items - Audit Logs removed
+  // Elementos de navegación (sidebar en Español)
   const navItems = [
-    { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
-    { label: "Scholars", icon: Users, path: "/admin/scholars" },
-    { label: "History", icon: Clock, path: "/admin/history" },
-    { label: "Data Ingestion", icon: Upload, path: "/admin/ingest" },
+    { label: "Panel", icon: LayoutDashboard, path: "/admin" },
+    { label: "Becarios", icon: Users, path: "/admin/scholars" },
+    { label: "Historial", icon: Clock, path: "/admin/history" },
+    { label: "Ingesta de Datos", icon: Upload, path: "/admin/ingest" },
   ];
 
   if (user?.role === "ADMIN") {
@@ -53,7 +53,7 @@ const AdminLayout = () => {
         <div className="p-4 flex items-center justify-between border-b border-white/10 h-16">
           {isSidebarOpen && (
             <span className="font-bold text-lg tracking-wide">
-              Scholarship Mgmt
+              Gestión de Becas
             </span>
           )}
           <button
@@ -96,7 +96,7 @@ const AdminLayout = () => {
             className="flex items-center gap-3 w-full px-3 py-2 text-red-300 hover:bg-red-500/10 hover:text-red-200 rounded-lg transition-colors"
           >
             <LogOut size={20} />
-            {isSidebarOpen && <span>Sign Out</span>}
+            {isSidebarOpen && <span>Cerrar sesión</span>}
           </button>
         </div>
       </aside>

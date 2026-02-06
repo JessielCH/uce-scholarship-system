@@ -1,7 +1,7 @@
 /**
  * ERROR TRACKING SERVICE - SPRINT 17
- * Registra errores en tabla audit_logs para análisis posterior
- * Interfaz neutral para futuros servicios (Sentry, DataDog, etc)
+ * Logs errors to audit_logs table for later analysis
+ * Neutral interface for future services (Sentry, DataDog, etc)
  */
 
 import { supabase } from "../services/supabaseClient";
@@ -10,7 +10,7 @@ import { logger } from "./logger";
 const isDevelopment = import.meta.env.MODE === "development";
 
 /**
- * Registra error en base de datos
+ * Logs error to database
  */
 export const trackError = async (context, error, metadata = {}) => {
   try {
@@ -23,7 +23,7 @@ export const trackError = async (context, error, metadata = {}) => {
       errorId: `ERR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     };
 
-    // Guardar en audit_logs como tipo 'ERROR'
+    // Save to audit_logs as 'ERROR' type
     const { error: insertError } = await supabase.from("audit_logs").insert({
       action: "ERROR_TRACKED",
       target_entity: "error_tracking",
@@ -32,11 +32,11 @@ export const trackError = async (context, error, metadata = {}) => {
     });
 
     if (insertError) {
-      logger.warn("ErrorTracking", "No se pudo guardar error en BD", {
+      logger.warn("ErrorTracking", "Could not save error to database", {
         originalError: error?.message,
       });
     } else {
-      logger.debug("ErrorTracking", "Error registrado en BD", {
+      logger.debug("ErrorTracking", "Error logged to database", {
         errorId: errorRecord.errorId,
         context,
       });
@@ -44,14 +44,14 @@ export const trackError = async (context, error, metadata = {}) => {
 
     return errorRecord.errorId;
   } catch (e) {
-    // No lanzar error aquí para no romper la app
-    logger.error("ErrorTracking", "Error crítico en trackError", e);
+    // Do not throw error here to avoid breaking the app
+    logger.error("ErrorTracking", "Critical error in trackError", e);
     return null;
   }
 };
 
 /**
- * Captura errores de fetch/requests
+ * Captures fetch/request errors
  */
 export const trackFetchError = async (
   url,
@@ -68,7 +68,7 @@ export const trackFetchError = async (
   });
 
   if (!isDevelopment) {
-    // En producción, enviar a servicio externo
+    // In production, send to external error service
     // await sendToErrorService({ errorId, ...args })
   }
 
@@ -76,7 +76,7 @@ export const trackFetchError = async (
 };
 
 /**
- * Captura errores de queries (React Query, Supabase)
+ * Captures query errors (React Query, Supabase)
  */
 export const trackQueryError = async (queryKey, error, context) => {
   const errorId = await trackError(context, error, {
@@ -84,7 +84,7 @@ export const trackQueryError = async (queryKey, error, context) => {
     queryKey,
   });
 
-  logger.error(context, `Error en query: ${queryKey}`, error, {
+  logger.error(context, `Query error: ${queryKey}`, error, {
     errorId,
   });
 

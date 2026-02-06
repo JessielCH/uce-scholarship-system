@@ -3,7 +3,7 @@ import { Timeline } from "../../ui/Timeline";
 
 /**
  * ORGANISM: ScholarshipProgressTimeline
- * Sección de progreso de solicitud y timeline
+ * Request progress and timeline section
  * Reemplaza JSX inline en Student Dashboard
  */
 const ScholarshipProgressTimeline = ({ scholarshipStatus }) => {
