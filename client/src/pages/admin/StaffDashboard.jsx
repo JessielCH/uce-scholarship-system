@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../services/supabaseClient";
 import { logger } from "../../utils/logger";
+import { useAdminMetrics } from "../../hooks/useScholarshipQueries";
 import {
   BarChart,
   Bar,
@@ -22,8 +23,12 @@ import {
   DollarSign,
   Activity,
 } from "lucide-react";
+import SkeletonLoader from "../../components/ui/SkeletonLoader";
+import AcademicRankings from "../../components/organisms/AcademicRankings";
 
 const StaffDashboard = () => {
+  const { data, isLoading } = useAdminMetrics();
+
   const [stats, setStats] = useState({
     total: 0,
     pendingDocs: 0,
@@ -32,54 +37,26 @@ const StaffDashboard = () => {
     paid: 0,
     rejected: 0,
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (data) {
+      // Extract stats from funnel data
+      const pendingDocs =
+        data.funnel.find((f) => f.stage === "Docs. Subidos")?.count || 0;
+      const approved =
+        data.funnel.find((f) => f.stage === "Aprobados")?.count || 0;
+      const paid = data.funnel.find((f) => f.stage === "Pagados")?.count || 0;
 
-  const fetchStats = async () => {
-    try {
-      // Traemos solo el campo 'status' para contar rápido
-      const { data, error } = await supabase
-        .from("scholarship_selections")
-        .select("status");
-
-      if (error) throw error;
-
-      // Calcular contadores
-      const counts = data.reduce(
-        (acc, curr) => {
-          acc.total++;
-          if (curr.status === "DOCS_UPLOADED") acc.pendingDocs++;
-          if (curr.status === "CONTRACT_UPLOADED") acc.pendingContracts++;
-          if (curr.status === "APPROVED" || curr.status === "READY_FOR_PAYMENT")
-            acc.approved++;
-          if (curr.status === "PAID") acc.paid++;
-          if (
-            curr.status.includes("REJECT") ||
-            curr.status === "CHANGES_REQUESTED"
-          )
-            acc.rejected++;
-          return acc;
-        },
-        {
-          total: 0,
-          pendingDocs: 0,
-          pendingContracts: 0,
-          approved: 0,
-          paid: 0,
-          rejected: 0,
-        },
-      );
-
-      setStats(counts);
-    } catch (error) {
-      logger.error("StaffDashboard", "Error fetching stats", error);
-    } finally {
-      setLoading(false);
+      setStats({
+        total: data.total,
+        pendingDocs,
+        pendingContracts: 0, // Can be calculated if needed
+        approved,
+        paid,
+        rejected: data.criticalCases,
+      });
     }
-  };
+  }, [data]);
 
   // Datos para los gráficos
   const barData = [
@@ -94,9 +71,32 @@ const StaffDashboard = () => {
     { name: "Pendiente", value: stats.total - stats.paid, color: "#E5E7EB" },
   ];
 
-  if (loading)
+  if (isLoading)
     return (
-      <div className="p-8 text-center text-gray-500">Cargando métricas...</div>
+      <div className="space-y-6 animate-fade-in">
+        {/* Header Skeleton */}
+        <div>
+          <SkeletonLoader className="h-8 w-64 mb-2 rounded-lg" />
+          <SkeletonLoader className="h-4 w-96 rounded-lg" />
+        </div>
+
+        {/* KPI Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonLoader key={i} className="h-40 rounded-xl" />
+          ))}
+        </div>
+
+        {/* Charts Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <SkeletonLoader className="h-80 rounded-xl" />
+          </div>
+          <div>
+            <SkeletonLoader className="h-80 rounded-xl" />
+          </div>
+        </div>
+      </div>
     );
 
   return (
@@ -272,6 +272,14 @@ const StaffDashboard = () => {
           </p>
         </div>
       </div>
+
+      {/* ACADEMIC RANKINGS ORGANISM */}
+      <AcademicRankings
+        topFaculty={data.topFaculty}
+        topCareer={data.topCareer}
+        faculties={data.faculties}
+        careers={data.careers}
+      />
     </div>
   );
 };

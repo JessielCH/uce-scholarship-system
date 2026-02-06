@@ -6,7 +6,8 @@ import { useAdminMetrics } from "../../hooks/useScholarshipQueries";
 import DashboardMetrics from "../../components/organisms/DashboardMetrics";
 import FunnelChart from "../../components/organisms/FunnelChart";
 import StatsCards from "../../components/organisms/StatsCards";
-import Spinner from "../../components/atoms/Spinner";
+import AcademicRankings from "../../components/organisms/AcademicRankings";
+import SkeletonLoader from "../../components/ui/SkeletonLoader";
 import Heading from "../../components/atoms/Heading";
 
 const AdminDashboard = () => {
@@ -15,8 +16,32 @@ const AdminDashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner size="lg" />
+      <div className="space-y-8 animate-fade-in">
+        {/* Header Skeleton */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+          <div className="flex-1">
+            <SkeletonLoader className="h-10 w-48 mb-2" />
+            <SkeletonLoader className="h-4 w-96" />
+          </div>
+          <SkeletonLoader className="h-10 w-32" />
+        </div>
+
+        {/* Metrics Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonLoader key={i} className="h-40 rounded-xl" />
+          ))}
+        </div>
+
+        {/* Charts Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <SkeletonLoader className="h-80 rounded-xl" />
+          </div>
+          <div>
+            <SkeletonLoader className="h-80 rounded-xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -52,6 +77,14 @@ const AdminDashboard = () => {
           criticalCases={data.criticalCases}
         />
       </div>
+
+      {/* ACADEMIC RANKINGS ORGANISM */}
+      <AcademicRankings
+        topFaculty={data.topFaculty}
+        topCareer={data.topCareer}
+        faculties={data.faculties}
+        careers={data.careers}
+      />
     </div>
   );
 };

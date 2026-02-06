@@ -12,6 +12,7 @@ import {
   Area,
 } from "recharts";
 import { Users, BookOpen, DollarSign, Award } from "lucide-react";
+import AcademicRankings from "../../components/organisms/AcademicRankings";
 
 const GuestDashboard = () => {
   const [metrics, setMetrics] = useState({
@@ -21,6 +22,12 @@ const GuestDashboard = () => {
     active_periods: 0,
   });
   const [chartData, setChartData] = useState([]);
+  const [academicData, setAcademicData] = useState({
+    topFaculty: { name: "N/A", average: 0 },
+    topCareer: { name: "N/A", average: 0 },
+    faculties: [],
+    careers: [],
+  });
 
   useEffect(() => {
     async function fetchPublicData() {
@@ -30,12 +37,12 @@ const GuestDashboard = () => {
         .select("*", { count: "exact", head: true })
         .in("status", ["APPROVED", "PAID", "READY_FOR_PAYMENT"]);
 
-      // 2. Carreras Beneficiadas (Simulado o count distinct si SQL lo permite, haremos aproximación)
+      // 2. Carreras Beneficiadas
       const { count: careerCount } = await supabase
         .from("careers")
         .select("*", { count: "exact", head: true });
 
-      // 3. Monto Invertido (Suma manual del cliente por ahora, idealmente una RPC)
+      // 3. Monto Invertido
       const { data: investments } = await supabase
         .from("scholarship_selections")
         .select("amount_awarded")
@@ -47,14 +54,68 @@ const GuestDashboard = () => {
           0,
         ) || 0;
 
+      // 4. Fetch academic rankings for approved/paid scholarships only
+      const { data: facultyMetrics } = await supabase
+        .from("scholarship_selections")
+        .select("average_grade, careers(faculty_id, faculties(name))")
+        .in("status", ["APPROVED", "PAID", "READY_FOR_PAYMENT"]);
+
+      const { data: careerMetrics } = await supabase
+        .from("scholarship_selections")
+        .select("average_grade, careers(name)")
+        .in("status", ["APPROVED", "PAID", "READY_FOR_PAYMENT"]);
+
+      // Calculate faculty averages
+      const facultyAverages = {};
+      facultyMetrics?.forEach((item) => {
+        const facultyName = item.careers?.faculties?.name || "Unknown";
+        if (!facultyAverages[facultyName]) {
+          facultyAverages[facultyName] = { sum: 0, count: 0 };
+        }
+        facultyAverages[facultyName].sum += item.average_grade || 0;
+        facultyAverages[facultyName].count += 1;
+      });
+
+      // Calculate career averages
+      const careerAverages = {};
+      careerMetrics?.forEach((item) => {
+        const careerName = item.careers?.name || "Unknown";
+        if (!careerAverages[careerName]) {
+          careerAverages[careerName] = { sum: 0, count: 0 };
+        }
+        careerAverages[careerName].sum += item.average_grade || 0;
+        careerAverages[careerName].count += 1;
+      });
+
+      const faculties = Object.entries(facultyAverages)
+        .map(([name, data]) => ({
+          name,
+          average: (data.sum / data.count).toFixed(2),
+        }))
+        .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
+      const careers = Object.entries(careerAverages)
+        .map(([name, data]) => ({
+          name,
+          average: (data.sum / data.count).toFixed(2),
+        }))
+        .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
       setMetrics({
         total_scholars: scholarCount || 0,
         total_careers: careerCount || 0,
         total_amount: totalInvested,
-        active_periods: 1, // Hardcoded por ahora
+        active_periods: 1,
       });
 
-      // Datos ficticios para gráfico de tendencia (o reales si tienes historial)
+      setAcademicData({
+        topFaculty: faculties[0] || { name: "N/A", average: 0 },
+        topCareer: careers[0] || { name: "N/A", average: 0 },
+        faculties,
+        careers,
+      });
+
+      // Datos ficticios para gráfico de tendencia
       setChartData([
         { name: "Ene", value: 120 },
         { name: "Feb", value: 300 },
@@ -181,6 +242,14 @@ const GuestDashboard = () => {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* ACADEMIC RANKINGS SECTION */}
+      <AcademicRankings
+        topFaculty={academicData.topFaculty}
+        topCareer={academicData.topCareer}
+        faculties={academicData.faculties}
+        careers={academicData.careers}
+      />
     </div>
   );
 };

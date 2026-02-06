@@ -79,6 +79,50 @@ export const useAdminMetrics = () => {
         return acc;
       }, {});
 
+      // Fetch metrics for faculties and careers
+      const { data: facultyMetrics } = await supabase
+        .from("scholarship_selections")
+        .select("average_grade, careers(faculty_id, faculties(name))");
+
+      const { data: careerMetrics } = await supabase
+        .from("scholarship_selections")
+        .select("average_grade, careers(name)");
+
+      // Calculate best faculty and career
+      const facultyAverages = {};
+      facultyMetrics?.forEach((item) => {
+        const facultyName = item.careers?.faculties?.name || "Unknown";
+        if (!facultyAverages[facultyName]) {
+          facultyAverages[facultyName] = { sum: 0, count: 0 };
+        }
+        facultyAverages[facultyName].sum += item.average_grade || 0;
+        facultyAverages[facultyName].count += 1;
+      });
+
+      const careerAverages = {};
+      careerMetrics?.forEach((item) => {
+        const careerName = item.careers?.name || "Unknown";
+        if (!careerAverages[careerName]) {
+          careerAverages[careerName] = { sum: 0, count: 0 };
+        }
+        careerAverages[careerName].sum += item.average_grade || 0;
+        careerAverages[careerName].count += 1;
+      });
+
+      const faculties = Object.entries(facultyAverages)
+        .map(([name, data]) => ({
+          name,
+          average: (data.sum / data.count).toFixed(2),
+        }))
+        .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
+      const careers = Object.entries(careerAverages)
+        .map(([name, data]) => ({
+          name,
+          average: (data.sum / data.count).toFixed(2),
+        }))
+        .sort((a, b) => parseFloat(b.average) - parseFloat(a.average));
+
       const total = statusCounts.length;
       const paidCount = counts["PAID"] || 0;
       const budgetUsed = paidCount * AVG_SCHOLARSHIP_COST;
@@ -107,6 +151,10 @@ export const useAdminMetrics = () => {
         criticalCases: criticalCases || 0,
         periodName: periodData?.name || "N/A",
         funnel,
+        topFaculty: faculties[0] || { name: "N/A", average: 0 },
+        topCareer: careers[0] || { name: "N/A", average: 0 },
+        faculties,
+        careers,
       };
     },
     staleTime: 1000 * 60 * 5,

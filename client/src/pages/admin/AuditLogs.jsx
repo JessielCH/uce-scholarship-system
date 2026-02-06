@@ -8,6 +8,7 @@ import { supabase } from "@/services/supabaseClient";
 import { logger } from "@/utils/logger";
 import { useDebounce } from "@/hooks/useDebounce";
 import { format } from "date-fns";
+import SkeletonLoader from "@/components/ui/SkeletonLoader";
 
 const AuditLogsDashboard = () => {
   const [logs, setLogs] = useState([]);
@@ -216,7 +217,18 @@ const AuditLogsDashboard = () => {
       {/* Tabla de logs */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-600">Cargando logs...</div>
+          <div className="divide-y divide-gray-200">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-6 py-4 flex gap-4">
+                <SkeletonLoader className="h-8 w-20 rounded" />
+                <SkeletonLoader className="h-8 w-24 rounded" />
+                <SkeletonLoader className="h-8 w-28 rounded flex-1" />
+                <SkeletonLoader className="h-8 w-24 rounded" />
+                <SkeletonLoader className="h-8 w-40 rounded" />
+                <SkeletonLoader className="h-8 w-32 rounded" />
+              </div>
+            ))}
+          </div>
         ) : logs.length === 0 ? (
           <div className="p-6 text-center text-gray-600">
             No hay registros que coincidan

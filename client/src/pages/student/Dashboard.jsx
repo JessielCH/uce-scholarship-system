@@ -13,7 +13,7 @@ import ScholarshipStatusCard from "../../components/organisms/ScholarshipStatusC
 import StatusAlert from "../../components/organisms/StatusAlert";
 import ScholarshipProgressTimeline from "../../components/organisms/ScholarshipProgressTimeline";
 import ScholarshipSuccessAlert from "../../components/organisms/ScholarshipSuccessAlert";
-import Spinner from "../../components/atoms/Spinner";
+import SkeletonLoader from "../../components/ui/SkeletonLoader";
 
 const Dashboard = () => {
   const { user, signOut, loading: authLoading } = useAuth();
@@ -79,11 +79,42 @@ const Dashboard = () => {
 
   if (loading)
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <Spinner size="lg" />
-        <span className="ml-3 text-brand-blue font-medium">
-          Cargando Panel...
-        </span>
+      <div className="min-h-screen bg-gray-50">
+        {/* Navbar Skeleton */}
+        <div className="bg-white border-b border-gray-200 py-4 px-6">
+          <div className="flex justify-between items-center max-w-7xl mx-auto">
+            <SkeletonLoader className="h-8 w-40" />
+            <SkeletonLoader className="h-8 w-20" />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+          {/* Status Alert Skeleton */}
+          <div className="mb-8">
+            <SkeletonLoader className="h-20 rounded-xl" />
+          </div>
+
+          {/* Status Card Skeleton */}
+          <div className="bg-white rounded-xl p-6 border border-gray-100 mb-8">
+            <SkeletonLoader className="h-12 w-48 mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <SkeletonLoader key={i} className="h-24 rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          {/* Timeline Skeleton */}
+          <div className="bg-white rounded-xl p-6 border border-gray-100">
+            <SkeletonLoader className="h-12 w-48 mb-6" />
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <SkeletonLoader key={i} className="h-16 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
 
