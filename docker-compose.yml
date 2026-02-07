@@ -1,18 +1,4 @@
-version: "3.8"
-
 services:
-  server:
-    build: ./server
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=4000
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-    networks:
-      - appnet
-
   client:
     build:
       context: ./client
@@ -28,8 +14,6 @@ services:
         - VITE_APP_URL=${VITE_APP_URL}
     ports:
       - "80:80"
-    depends_on:
-      - server
     restart: unless-stopped
     networks:
       - appnet
