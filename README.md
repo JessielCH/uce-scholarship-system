@@ -35,28 +35,21 @@ The UCE Scholarship Management System is designed to streamline scholarship dist
 - **PDF Generation**: PDFKit for contracts and receipts
 - **Build Tool**: Vite with hot module replacement
 
-#### Backend
+#### Backend (Supabase - Headless)
 
-- **Runtime**: Node.js 18+ with Express.js
 - **Database**: PostgreSQL (managed by Supabase)
-- **File Storage**: Supabase Storage (AWS S3-compatible)
-- **Email**: Nodemailer with SMTP integration
-- **Algorithm**: Custom scholarship selection (10% threshold)
-- **Logging**: Custom logger utility with severity levels
-
-#### Database (PostgreSQL via Supabase)
-
 - **Authentication**: Supabase Auth with UUID-based user IDs
-- **RLS Policies**: Fine-grained row-level security for data access
-- **Core Tables**: profiles, students, academic_periods, careers, scholarship_selections, documents, audit_logs
+- **File Storage**: Supabase Storage (AWS S3-compatible)
+- **Business Logic**: Client-side Supabase services (direct queries + RLS)
+- **Real-Time Subscriptions**: WebSocket-based live updates
+- **Row-Level Security**: Fine-grained data access policies
 
-#### DevOps & Infrastructure
+#### Infrastructure
 
-- **Containerization**: Docker (multi-stage builds)
-- **Orchestration**: Docker Compose
+- **Containerization**: Docker (client-only, lightweight)
+- **Web Server**: Nginx (serving React SPA)
 - **Cloud Platform**: AWS (EC2 for compute)
-- **Reverse Proxy**: Nginx for request routing
-- **SSL/TLS**: HTTPS with certificate management
+- **Deployment**: Docker Compose (single service)
 
 ---
 
@@ -64,32 +57,30 @@ The UCE Scholarship Management System is designed to streamline scholarship dist
 
 ```
 uce-scholarship-system/
-├── client/                  # React Frontend
+├── client/                           # React Frontend (SPA)
 │   ├── src/
-│   │   ├── components/     # Atomic Design (atoms, molecules, organisms)
-│   │   ├── pages/          # Page components (admin, student, guest)
-│   │   ├── context/        # React Context (Auth, Admin)
-│   │   ├── hooks/          # Custom hooks
-│   │   ├── services/       # APIs & external services
-│   │   ├── utils/          # Utility functions
-│   │   ├── schemas/        # Validation schemas
-│   │   ├── config/         # Configuration files
-│   │   └── assets/         # Static assets
+│   │   ├── components/              # Atomic Design (atoms, molecules, organisms)
+│   │   ├── pages/                   # Page components (admin, student, guest)
+│   │   ├── context/                 # React Context (Auth, Admin)
+│   │   ├── hooks/                   # Custom hooks
+│   │   ├── services/                # Supabase services & utilities
+│   │   │   ├── supabaseClient.js   # Supabase client initialization
+│   │   │   └── supabaseAuthService.js # Auth & staff management
+│   │   ├── utils/                   # Utility functions (logger, PDF generation)
+│   │   ├── schemas/                 # Validation schemas (Yup/Zod)
+│   │   ├── config/                  # Configuration files
+│   │   └── assets/                  # Static assets
+│   ├── nginx/
+│   │   └── default.conf            # Nginx SPA routing config
 │   ├── Dockerfile
 │   ├── vite.config.ts
+│   ├── tailwind.config.js
 │   └── package.json
 │
-├── server/                  # Node.js/Express Backend
-│   ├── config/             # Supabase configuration
-│   ├── middleware/         # Logging middleware
-│   ├── utils/              # Algorithms & helpers
-│   ├── index.js            # Entry point
-│   ├── Dockerfile
-│   └── package.json
-│
-├── docker-compose.yml       # Docker orchestration
-├── .env.example            # Environment template
-└── README.md               # This file
+├── docker-compose.yml               # Docker compose (client only)
+├── .env                            # Environment variables (not in git)
+├── .env.example                    # Environment template
+└── README.md                        # This file
 ```
 
 ---
@@ -117,9 +108,9 @@ User → Google OAuth 2.0 → Supabase Auth → JWT Token → Protected Routes
 ### Prerequisites
 
 - Node.js 18+
-- Docker & Docker Compose
-- Supabase project
-- SMTP credentials
+- Docker & Docker Compose (for production)
+- Supabase project with configured tables and RLS policies
+- Environment variables (see .env.example)
 
 ### Local Development Setup
 
@@ -128,44 +119,46 @@ User → Google OAuth 2.0 → Supabase Auth → JWT Token → Protected Routes
 git clone https://github.com/JessielCH/uce-scholarship-system.git
 cd uce-scholarship-system
 
-# Install dependencies
-cd client && npm install && cd ..
-cd server && npm install && cd ..
+# Install dependencies (client only)
+cd client
+npm install
 
 # Configure environment
-cp .env.example .env.local
-# Edit .env.local with your credentials
+cd ..
+cp .env.example .env
+# Edit .env with your Supabase credentials and API keys
 
-# Start development servers
-# Terminal 1 - Frontend
-cd client && npm run dev
-
-# Terminal 2 - Backend
-cd server && npm run dev
+# Start development server
+cd client
+npm run dev
+# Frontend will be available at http://localhost:5173
 ```
 
 ### Production Deployment with Docker
 
 ```bash
-# Build and deploy all services
+# Build and deploy (client-only)
 docker-compose up --build -d
 
 # View logs
-docker-compose logs -f
+docker-compose logs -f client
 
-# Access via http://localhost or AWS domain
+# Access via http://localhost or your AWS domain
 ```
 
 ---
 
-## 📡 API Endpoints
+## � Data Layer
 
-- `POST /api/auth/login` - User login
-- `GET /api/auth/verify-student` - Verify session
-- `POST /api/admin/create-staff` - Create staff
-- `GET /api/scholarships` - List scholarships
-- `PUT /api/scholarships/:id/status` - Update status
-- `POST /api/documents/upload` - Upload document
+All database operations go directly from the React client to Supabase, secured by:
+
+- **Row-Level Security (RLS)**: Fine-grained access control at database level
+- **Supabase Auth**: Token-based authentication
+- **Service Methods**: `client/src/services/supabaseAuthService.js` for core operations:
+  - `verifyStudent(email)` - Check if email is scholarship student
+  - `createStaff(email, password, fullName, role)` - Create staff/admin users
+
+No intermediary Node.js API layer—all business logic in React using Supabase client library.
 
 ---
 
@@ -210,9 +203,27 @@ Registration → Active Period → Selection Algorithm (Top 10%)
 
 ## 🐛 Known Limitations
 
-- Google OAuth requires matching redirect URLs in AWS
+- Supabase admin operations (like `auth.admin.createUser()`) require proper RLS and auth permissions configured
+- Real-time subscriptions depend on Supabase WebSocket availability
 - PDF generation has limited font support
-- CORS must match production domain names
+- Client-side storage limited to browser's localStorage/IndexedDB
+
+---
+
+## 📚 Architecture Decision: Client-Only vs Full-Stack
+
+**Why we removed the Node.js backend:**
+
+✅ **Simpler deployment** - One container instead of two  
+✅ **Lower latency** - Direct client-to-Supabase queries  
+✅ **Easier scaling** - No backend server memory/CPU overhead  
+✅ **Type safety potential** - Supabase auto-generates TypeScript types  
+✅ **Cost reduction** - Fewer AWS resources needed  
+
+⚠️ **Trade-offs:**
+- Complex multi-step operations need to be handled client-side
+- Cannot hide Supabase keys server-side (use only anon key for public ops)
+- Validation logic duplicated between client and database RLS
 
 ---
 
@@ -224,7 +235,7 @@ All rights reserved. Unauthorized copying is prohibited.
 ---
 
 **Last Updated**: February 2026  
-**Version**: 1.0.0  
-**Main Technologies**: React 18, Node.js, PostgreSQL, Supabase, Docker, AWS
+**Version**: 2.0.0 (Client-Only Architecture)  
+**Main Technologies**: React 18, Supabase, PostgreSQL, Docker, AWS, Nginx
 
 For support, issues, or contributions, please contact the development team.
