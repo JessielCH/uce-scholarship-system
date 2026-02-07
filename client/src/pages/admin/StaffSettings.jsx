@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useAuth } from "../../context/AuthContext";
+import { createStaff } from "../../services/supabaseAuthService";
 import { logger } from "../../utils/logger";
 import {
   UserPlus,
@@ -49,23 +50,15 @@ const StaffSettings = () => {
       });
 
       try {
-        // Import API configuration
-        const { API_ENDPOINTS } = await import("../../config/api");
-
-        // Request to Node.js backend using Supabase Service Role
-        const response = await fetch(API_ENDPOINTS.CREATE_STAFF, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(values),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to communicate with server");
-        }
+        // ⚠️ IMPORTANT: This uses direct Supabase client-side operations
+        // NO HTTP calls to /api/ endpoints - backend logic migrated to client
+        // Create staff directly using Supabase service
+        const response = await createStaff(
+          values.email,
+          values.password,
+          values.fullName,
+          values.role,
+        );
 
         logger.audit("CREATE_STAFF", "users", {
           email: values.email,

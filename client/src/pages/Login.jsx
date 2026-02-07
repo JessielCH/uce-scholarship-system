@@ -8,9 +8,9 @@ import {
 } from "@/schemas/authSchema";
 import { AlertCircle, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
+import { verifyStudent } from "../services/supabaseAuthService";
 import { useAuth } from "../context/AuthContext";
 import { logger } from "../utils/logger";
-import { API_ENDPOINTS } from "../config/api";
 
 // --- VALIDATION SCHEMAS WITH ZOD (centralized) ---
 const loginSchema = centralLoginSchema;
@@ -100,13 +100,7 @@ const Login = () => {
       try {
         // If registration, first verify it's a scholarship student
         if (isSignUp) {
-          const verifyResponse = await fetch(API_ENDPOINTS.VERIFY_STUDENT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-
-          const verifyData = await verifyResponse.json();
+          const verifyData = await verifyStudent(email);
 
           if (!verifyData.isBecado) {
             setAuthError(

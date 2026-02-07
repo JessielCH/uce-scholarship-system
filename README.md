@@ -218,9 +218,10 @@ Registration → Active Period → Selection Algorithm (Top 10%)
 ✅ **Lower latency** - Direct client-to-Supabase queries  
 ✅ **Easier scaling** - No backend server memory/CPU overhead  
 ✅ **Type safety potential** - Supabase auto-generates TypeScript types  
-✅ **Cost reduction** - Fewer AWS resources needed  
+✅ **Cost reduction** - Fewer AWS resources needed
 
 ⚠️ **Trade-offs:**
+
 - Complex multi-step operations need to be handled client-side
 - Cannot hide Supabase keys server-side (use only anon key for public ops)
 - Validation logic duplicated between client and database RLS
