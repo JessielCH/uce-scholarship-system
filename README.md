@@ -1,6 +1,16 @@
 # UCE Scholarship Management System
 
-> A comprehensive full-stack web application for managing university scholarship programs with real-time updates, document management, and advanced analytics dashboards.
+<p align="center">
+  <img src="client/public/images/logo-uce.png" alt="UCE logo" width="96" />
+  <br />
+  <strong>UCE Scholarship Management System</strong>
+  <br />
+  <em>A modern client-first application for managing university scholarships (React + Supabase)</em>
+</p>
+
+[![License](https://img.shields.io/badge/license-Proprietary-blue.svg)](LICENSE)
+[![Built with React](https://img.shields.io/badge/built%20with-React-61DBFB.svg?logo=react)](https://reactjs.org)
+[![Supabase](https://img.shields.io/badge/backend-Supabase-3ECF8E.svg?logo=supabase)](https://supabase.com)
 
 ## 📋 Overview
 
@@ -82,6 +92,34 @@ uce-scholarship-system/
 ├── .env.example                    # Environment template
 └── README.md                        # This file
 ```
+
+---
+
+## 📸 Screenshots & Images
+
+Place project images inside the `imagenes/` folder. Recommended subfolders:
+
+```
+imagenes/
+├── screenshots/   # login, dashboard, admin pages
+├── diagrams/      # architecture diagrams
+└── logos/         # project logos
+```
+
+Examples to include images in this README:
+
+```markdown
+<!-- Use the logo bundled in the client as example -->
+
+![UCE Logo](client/public/images/logo-uce.png)
+
+<!-- Placeholder screenshots - replace with your files under imagenes/screenshots/ -->
+
+![Login screen](imagenes/screenshots/login.png)
+![Dashboard](imagenes/screenshots/dashboard.png)
+```
+
+When you upload the images to `imagenes/`, I can insert them into the README in the appropriate sections (Login, Admin, Dashboard, Architecture).
 
 ---
 
