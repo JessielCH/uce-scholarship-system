@@ -1,26 +1,36 @@
-// API Configuration - Uses dynamic URL from environment
-// Supports both development (localhost) and production (AWS)
+// API Configuration
+// Behavior:
+// - If `import.meta.env.VITE_API_BASE_URL` is set, use that (explicit production backend URL)
+// - Otherwise, if running on localhost, use http://localhost:4000 for local backend
+// - Otherwise (deployed frontend), use relative `/api` so nginx or the host proxies requests to the backend
 
 const getApiBaseUrl = () => {
-  // Try to use VITE_APP_URL from environment
-  if (import.meta.env.VITE_APP_URL) {
-    return import.meta.env.VITE_APP_URL;
+  // Explicit override (recommended for production): VITE_API_BASE_URL
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "");
   }
 
-  // Fallback: Use the current origin and port 4000 (backend server)
-  const protocol = window.location.protocol;
-  const hostname = window.location.hostname;
-  return `${protocol}//${hostname}:4000`;
+  // Local development: keep using localhost:4000
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    return `${window.location.protocol}//${window.location.hostname}:4000`;
+  }
+
+  // Deployed: use a relative path so the same origin (nginx) proxies /api to the backend
+  return ""; // empty string -> use relative endpoints prefixed with /api
 };
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// Helper function to build API endpoints
+// Helper function to build API endpoints. If API_BASE_URL is empty string, this returns a relative URL.
 export const buildApiUrl = (endpoint) => {
-  return `${API_BASE_URL}${endpoint}`;
+  // ensure endpoint starts with /
+  const ep = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return `${API_BASE_URL}${ep}`;
 };
 
-// Export common endpoints for easy use
 export const API_ENDPOINTS = {
   VERIFY_STUDENT: buildApiUrl("/api/auth/verify-student"),
   CREATE_STAFF: buildApiUrl("/api/admin/create-staff"),

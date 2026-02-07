@@ -25,6 +25,7 @@ The UCE Scholarship Management System is designed to streamline scholarship dist
 ### Technology Stack
 
 #### Frontend
+
 - **Framework**: React 18 with Vite (ultra-fast build)
 - **Styling**: Tailwind CSS + PostCSS for responsive design
 - **State Management**: TanStack React Query (data fetching, caching, synchronization)
@@ -35,6 +36,7 @@ The UCE Scholarship Management System is designed to streamline scholarship dist
 - **Build Tool**: Vite with hot module replacement
 
 #### Backend
+
 - **Runtime**: Node.js 18+ with Express.js
 - **Database**: PostgreSQL (managed by Supabase)
 - **File Storage**: Supabase Storage (AWS S3-compatible)
@@ -43,11 +45,13 @@ The UCE Scholarship Management System is designed to streamline scholarship dist
 - **Logging**: Custom logger utility with severity levels
 
 #### Database (PostgreSQL via Supabase)
+
 - **Authentication**: Supabase Auth with UUID-based user IDs
 - **RLS Policies**: Fine-grained row-level security for data access
 - **Core Tables**: profiles, students, academic_periods, careers, scholarship_selections, documents, audit_logs
 
 #### DevOps & Infrastructure
+
 - **Containerization**: Docker (multi-stage builds)
 - **Orchestration**: Docker Compose
 - **Cloud Platform**: AWS (EC2 for compute)
@@ -93,12 +97,15 @@ uce-scholarship-system/
 ## 🔐 Security & Access Control
 
 ### Row-Level Security (RLS)
+
 All database queries enforce RLS policies:
+
 - **Students**: Only their own data
 - **Staff**: Assigned period data
 - **Admin**: Full unrestricted access
 
 ### Authentication
+
 ```
 User → Google OAuth 2.0 → Supabase Auth → JWT Token → Protected Routes
 ```
@@ -108,6 +115,7 @@ User → Google OAuth 2.0 → Supabase Auth → JWT Token → Protected Routes
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - Docker & Docker Compose
 - Supabase project
@@ -164,6 +172,7 @@ docker-compose logs -f
 ## 🔄 Real-Time Features
 
 Uses Supabase Realtime subscriptions for:
+
 - Document upload notifications
 - Instant status updates
 - Live dashboard metrics refresh
