@@ -5,7 +5,9 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../services/supabaseClient";
 import { logger } from "../utils/logger";
 
@@ -15,6 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Function to load profile with detailed logs
   const fetchProfile = useCallback(async (authUser) => {
@@ -117,11 +120,46 @@ export const AuthProvider = ({ children }) => {
     };
   }, [fetchProfile, session?.access_token]);
 
+  // Invalidate queries when user changes to prevent stale data
+  useEffect(() => {
+    if (user?.id) {
+      // Invalidate student-specific queries when user changes
+      queryClient.invalidateQueries({
+        queryKey: ["student-dashboard"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-strategic-metrics"],
+      });
+    }
+  }, [user?.id, queryClient]);
+
   const signOut = async () => {
     logger.audit("LOGOUT", "auth", { timestamp: new Date().toISOString() });
-    await supabase.auth.signOut();
+
+    // Clear all session data FIRST
     setSession(null);
     setUser(null);
+
+    // Then clear all React Query cache to prevent showing old user data
+    try {
+      queryClient.clear();
+    } catch (error) {
+      logger.debug(
+        "AuthContext",
+        "QueryClient not available during logout",
+        error,
+      );
+    }
+
+    // Clear browser storage to prevent old user data from persisting
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+      localStorage.removeItem("supabase.auth.token");
+      localStorage.removeItem("user-profile");
+    }
+
+    // Sign out from Supabase
+    await supabase.auth.signOut();
   };
 
   const authValue = useMemo(

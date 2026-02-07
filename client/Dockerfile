@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --silent
 
-# Debes declarar cada variable VITE_ como ARG
+# ARG
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_EMAILJS_SERVICE_ID

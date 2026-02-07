@@ -18,14 +18,44 @@ import Button from "../../atoms/Button";
  * Reemplaza ScholarshipTableRow para mejor responsividad mobile
  */
 const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
-  const [documents, setDocuments] = useState(item?.documents || []);
+  const [documents, setDocuments] = useState([]);
 
-  // Actualizar documentos cuando cambian los props
+  // Fetch initial documents when item loads
   useEffect(() => {
-    setDocuments(item?.documents || []);
-  }, [item?.documents]);
+    if (!item?.id) {
+      console.warn("⚠️ ScholarshipCard: No item ID provided");
+      return;
+    }
 
-  // Real-time para documentos de esta tarjeta específica
+    const fetchDocuments = async () => {
+      console.log(
+        `📄 ScholarshipCard: Fetching documents for selection_id=${item.id}`,
+      );
+
+      const { data, error } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("selection_id", item.id);
+
+      if (error) {
+        console.error(
+          `❌ ScholarshipCard: Error fetching documents for ${item.id}:`,
+          error,
+        );
+        setDocuments([]);
+        return;
+      }
+
+      console.log(
+        `✅ ScholarshipCard: Fetched ${data?.length || 0} documents for selection_id=${item.id}`,
+      );
+      setDocuments(data || []);
+    };
+
+    fetchDocuments();
+  }, [item?.id]);
+
+  // Real-time subscription para documentos de esta tarjeta específica
   useEffect(() => {
     if (!item?.id) return;
 

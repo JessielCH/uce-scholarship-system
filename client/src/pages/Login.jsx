@@ -10,6 +10,7 @@ import { AlertCircle, Lock, Mail, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { logger } from "../utils/logger";
+import { API_ENDPOINTS } from "../config/api";
 
 // --- VALIDATION SCHEMAS WITH ZOD (centralized) ---
 const loginSchema = centralLoginSchema;
@@ -99,14 +100,11 @@ const Login = () => {
       try {
         // If registration, first verify it's a scholarship student
         if (isSignUp) {
-          const verifyResponse = await fetch(
-            "http://localhost:3000/api/auth/verify-student",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email }),
-            },
-          );
+          const verifyResponse = await fetch(API_ENDPOINTS.VERIFY_STUDENT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
 
           const verifyData = await verifyResponse.json();
 
@@ -150,13 +148,14 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setVerifying(true);
     try {
+      // Redirect URL is automatically set to the current origin for better AWS compatibility
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin + "/login" },
       });
       if (error) throw error;
     } catch (error) {
-      alert("Error Google: " + error.message);
+      alert("Google Auth Error: " + error.message);
       setVerifying(false);
     }
   };

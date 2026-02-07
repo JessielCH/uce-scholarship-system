@@ -216,6 +216,33 @@ const IngestData = () => {
 
       if (selectionsPayload.length > 0) {
         console.log(`\n⏳ Saving to DB...`);
+
+        // CLEANUP: Remove old documents for these students in this period
+        // This prevents document duplication when re-importing
+        console.log(`🧹 Cleaning up old documents for re-imported students...`);
+        const studentIds = new Set(selectionsPayload.map((s) => s.student_id));
+
+        // Find all current selections for these students in this period
+        const { data: existingSelections } = await supabase
+          .from("scholarship_selections")
+          .select("id")
+          .eq("period_id", selectedPeriodId)
+          .in("student_id", Array.from(studentIds));
+
+        if (existingSelections && existingSelections.length > 0) {
+          const existingSelectionIds = existingSelections.map((s) => s.id);
+          const { error: docDeleteError } = await supabase
+            .from("documents")
+            .delete()
+            .in("selection_id", existingSelectionIds);
+
+          if (!docDeleteError) {
+            console.log(
+              `   ✓ Cleaned ${existingSelectionIds.length} selection document sets`,
+            );
+          }
+        }
+
         const { data: insertedData, error: selError } = await supabase
           .from("scholarship_selections")
           .upsert(selectionsPayload, { onConflict: "student_id, period_id" })
@@ -236,6 +263,52 @@ const IngestData = () => {
         console.log(`   - SELECTED: ${statusCount.SELECTED}`);
         console.log(`   - PAID: ${statusCount.PAID}`);
         console.log(`   - Saved period ID: ${selectedPeriodId}`);
+
+        // CLEANUP: Remove orphaned documents from previous periods
+        console.log(
+          `\n🧹 CLEANING UP: Removing documents from students who are no longer in this period...`,
+        );
+        const currentStudentIds = new Set(
+          insertedData?.map((r) => r.student_id) || [],
+        );
+
+        // Get all documents for students in this period from scholarship_selections
+        const { data: validSelections } = await supabase
+          .from("scholarship_selections")
+          .select("id")
+          .eq("period_id", selectedPeriodId);
+
+        const validSelectionIds = new Set(
+          validSelections?.map((s) => s.id) || [],
+        );
+
+        // Find and delete documents with invalid selection_ids
+        const { data: allPeriodDocuments } = await supabase
+          .from("documents")
+          .select("id, selection_id")
+          .in("selection_id", Array.from(validSelectionIds));
+
+        // Documents that point to selections not in current import
+        const documentsToDelete =
+          allPeriodDocuments?.filter(
+            (doc) => !validSelectionIds.has(doc.selection_id),
+          ) || [];
+
+        if (documentsToDelete.length > 0) {
+          const docIdsToDelete = documentsToDelete.map((d) => d.id);
+          const { error: deleteError } = await supabase
+            .from("documents")
+            .delete()
+            .in("id", docIdsToDelete);
+
+          if (!deleteError) {
+            console.log(
+              `   - Removed ${documentsToDelete.length} orphaned documents`,
+            );
+          }
+        } else {
+          console.log(`   - No orphaned documents found`);
+        }
       }
 
       setUploadStatus("success");

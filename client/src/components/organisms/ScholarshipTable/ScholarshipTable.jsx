@@ -32,10 +32,19 @@ const fetchScholars = async ({ queryKey }) => {
 
   let query = supabase.from("scholarship_selections").select(
     `
-      *,
+      id,
+      student_id,
+      period_id,
+      career_id,
+      status,
+      average_grade,
+      semester,
+      academic_condition,
+      is_top_10,
+      created_at,
+      updated_at,
       students!inner (first_name, last_name, national_id, university_email),
-      careers!inner (name),
-      documents (*)
+      careers!inner (name)
     `,
     { count: "exact" },
   );

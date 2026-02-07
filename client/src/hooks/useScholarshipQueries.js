@@ -31,6 +31,11 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
   return useQuery({
     queryKey: ["student-dashboard", userEmail],
     queryFn: async () => {
+      // Ensure we have a valid email
+      if (!userEmail) {
+        return { student: null, scholarship: null };
+      }
+
       const { data: student, error: stuError } = await supabase
         .from("students")
         .select("*")
@@ -73,6 +78,8 @@ export const useStudentDashboardData = (userEmail, enabled = true) => {
     },
     enabled: enabled && !!userEmail,
     staleTime: 1000 * 60 * 5,
+    // Force refetch when userEmail changes significantly
+    refetchOnWindowFocus: "stale",
   });
 };
 

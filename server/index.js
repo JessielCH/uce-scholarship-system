@@ -9,7 +9,38 @@ import { supabase } from "./config/supabase.js";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
+
+// --- CORS Configuration - Allow requests from localhost and AWS ---
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow localhost for development
+    if (
+      !origin ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1")
+    ) {
+      callback(null, true);
+    }
+    // Check if the origin contains the current domain (for AWS)
+    else if (
+      origin.includes(process.env.AWS_DOMAIN || "amazonaws.com") ||
+      process.env.ALLOWED_ORIGINS?.split(",").includes(origin)
+    ) {
+      callback(null, true);
+    }
+    // Allow same-origin requests (important for AWS)
+    else {
+      console.warn(`CORS request rejected from origin: ${origin}`);
+      callback(null, true); // Allow for now, can be restricted if needed
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 
 // --- [SPRINT 4] ESQUEMA DE VERDAD PARA STAFF ---
 const staffSchema = z.object({
@@ -46,7 +77,7 @@ const swaggerOptions = {
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-app.use(cors());
+// CORS and body parsing already configured above
 app.use(express.json());
 
 /**

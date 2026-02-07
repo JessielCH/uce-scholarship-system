@@ -27,6 +27,13 @@ const Dashboard = () => {
     refetch,
   } = useStudentDashboardData(user?.email, !authLoading);
 
+  // Refetch when user changes to prevent stale data from previous user
+  useEffect(() => {
+    if (user?.email && !authLoading) {
+      refetch();
+    }
+  }, [user?.email, authLoading, refetch]);
+
   // REALTIME: Listen to real-time status changes
   useEffect(() => {
     if (!data?.scholarship?.id) return;

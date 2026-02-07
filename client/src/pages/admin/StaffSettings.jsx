@@ -49,17 +49,17 @@ const StaffSettings = () => {
       });
 
       try {
-        // Petición al backend (Node.js) que usa el Service Role de Supabase
-        const response = await fetch(
-          "http://localhost:3000/api/admin/create-staff",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(values),
+        // Import API configuration
+        const { API_ENDPOINTS } = await import("../../config/api");
+
+        // Request to Node.js backend using Supabase Service Role
+        const response = await fetch(API_ENDPOINTS.CREATE_STAFF, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify(values),
+        });
 
         const data = await response.json();
 
