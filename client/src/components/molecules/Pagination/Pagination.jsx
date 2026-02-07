@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
  * MOLECULE: Pagination
- * Controles de paginación reutilizables
  */
 const Pagination = ({
   currentPage,

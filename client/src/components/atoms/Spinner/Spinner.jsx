@@ -3,8 +3,6 @@ import { Loader2 } from "lucide-react";
 
 /**
  * ATOM: Spinner
- * Indicador de carga reutilizable.
- * Tamaños: sm, md, lg
  */
 const Spinner = ({ size = "md", className = "", ...props }) => {
   const sizeMap = {

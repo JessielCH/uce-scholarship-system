@@ -4,8 +4,6 @@ import CurrentPeriodBadge from "../../molecules/CurrentPeriodBadge";
 
 /**
  * ORGANISM: StudentDashboardNavbar
- * Navbar específico del dashboard de estudiantes
- * Integra: información del estudiante, botón de logout
  */
 const StudentDashboardNavbar = ({ studentData, onLogout }) => {
   return (

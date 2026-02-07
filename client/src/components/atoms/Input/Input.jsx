@@ -2,7 +2,6 @@ import React from "react";
 
 /**
  * ATOM: Input
- * Input reutilizable con estilos consistentes.
  */
 const Input = ({
   type = "text",

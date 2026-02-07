@@ -25,7 +25,6 @@ const AdminLayout = () => {
     navigate("/login");
   };
 
-  // Elementos de navegación (sidebar en Español)
   const navItems = [
     { label: "Panel", icon: LayoutDashboard, path: "/admin" },
     { label: "Becarios", icon: Users, path: "/admin/scholars" },

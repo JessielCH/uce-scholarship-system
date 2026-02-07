@@ -3,8 +3,6 @@ import { X } from "lucide-react";
 
 /**
  * ATOM: Alert
- * Alerta para mensajes de error, éxito, advertencia.
- * Variantes: success, error, warning, info
  */
 const Alert = ({
   type = "info",

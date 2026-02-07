@@ -4,8 +4,6 @@ import { AlertCircle } from "lucide-react";
 
 /**
  * MOLECULE: FormField
- * Combinación de Label + Input + Error Message
- * Patrón común en formularios
  */
 const FormField = ({
   label,

@@ -2,8 +2,6 @@ import React from "react";
 
 /**
  * ATOM: Heading
- * Encabezados reutilizables.
- * Niveles: h1, h2, h3, h4
  */
 const Heading = ({
   children,

@@ -2,9 +2,6 @@ import React from "react";
 
 /**
  * ATOM: Button
- * Botón reutilizable con variantes de estilo.
- * Soporta: primary, secondary, danger, ghost
- * Tamaños: sm, md, lg
  */
 const Button = ({
   children,

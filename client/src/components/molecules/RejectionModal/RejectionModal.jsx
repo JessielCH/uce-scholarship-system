@@ -4,8 +4,6 @@ import Button from "../../atoms/Button";
 
 /**
  * MOLECULE: RejectionModal
- * Modal para que el admin ingrese la razón del rechazo de un documento
- * Se abre cuando hace click en "X" (rechazar)
  */
 const RejectionModal = ({ isOpen, onClose, onConfirm, documentType }) => {
   const [reason, setReason] = useState("");

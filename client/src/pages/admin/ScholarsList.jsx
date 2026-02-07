@@ -1,15 +1,11 @@
 import React from "react";
 import { Users } from "lucide-react";
 
-// Componentes Atomic Design
 import ScholarshipTable from "../../components/organisms/ScholarshipTable";
 import Heading from "../../components/atoms/Heading";
 
 /**
  * PAGE: ScholarsList
- * Página principal para gestión de becarios
- * Delega toda la lógica a ScholarshipTable organism
- * Reducción: 541 líneas → ~30 líneas
  */
 const ScholarsList = () => {
   return (

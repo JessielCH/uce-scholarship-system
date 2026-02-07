@@ -37,12 +37,11 @@ const GuestDashboard = () => {
         .select("*", { count: "exact", head: true })
         .in("status", ["APPROVED", "PAID", "READY_FOR_PAYMENT"]);
 
-      // 2. Carreras Beneficiadas
       const { count: careerCount } = await supabase
         .from("careers")
         .select("*", { count: "exact", head: true });
 
-      // 3. Monto Invertido
+      // 2. Sum total amount awarded for transparency
       const { data: investments } = await supabase
         .from("scholarship_selections")
         .select("amount_awarded")

@@ -1,10 +1,5 @@
 /**
  * Contentful CMS Configuration
- * Para obtener tus credentials:
- * 1. Crea una cuenta en https://www.contentful.com/
- * 2. Ve a Settings > API Keys
- * 3. Copia tu Space ID y Content Delivery API token
- * 4. Reemplaza los valores en .env (ver .env.example)
  */
 
 const CONTENTFUL_CONFIG = {
@@ -14,13 +9,12 @@ const CONTENTFUL_CONFIG = {
   environment: import.meta.env.VITE_CONTENTFUL_ENVIRONMENT || "master",
 };
 
-// URL de la API de Contentful
 export const CONTENTFUL_API_URL = `https://cdn.contentful.com/spaces/${CONTENTFUL_CONFIG.spaceId}/entries`;
 
 /**
- * Función para obtener conținut de Contentful
- * @param {string} contentType - Tipo de contenido (ej: "homePage", "fases", etc.)
- * @returns {Promise} Respuesta de Contentful
+ *
+ * @param {string} contentType
+ * @returns {Promise}
  */
 export const fetchFromContentful = async (contentType) => {
   try {

@@ -4,7 +4,6 @@ import { useAcademicPeriods } from "../../../hooks/useScholarshipQueries";
 
 /**
  * MOLECULE: PeriodSelector
- * Selector para cambiar el período académico en dashboards
  */
 const PeriodSelector = ({
   selectedPeriodId,

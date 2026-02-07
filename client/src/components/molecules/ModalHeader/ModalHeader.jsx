@@ -3,7 +3,6 @@ import { X } from "lucide-react";
 
 /**
  * MOLECULE: ModalHeader
- * Header reutilizable para modales
  */
 const ModalHeader = ({
   title,

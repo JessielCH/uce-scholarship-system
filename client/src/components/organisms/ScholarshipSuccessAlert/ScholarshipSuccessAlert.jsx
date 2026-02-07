@@ -3,8 +3,6 @@ import { CheckCircle } from "lucide-react";
 
 /**
  * ORGANISM: ScholarshipSuccessAlert
- * Sección de éxito cuando la beca está PAGADA
- * Reemplaza JSX inline en Student Dashboard
  */
 const ScholarshipSuccessAlert = () => {
   return (

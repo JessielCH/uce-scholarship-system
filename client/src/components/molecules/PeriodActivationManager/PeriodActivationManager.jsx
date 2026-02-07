@@ -12,7 +12,6 @@ import { logger } from "../../utils/logger";
 
 /**
  * MOLECULE: PeriodActivationManager
- * Permite al admin marcar qué período es el actual/activo
  */
 const PeriodActivationManager = () => {
   const { data: periods, isLoading, refetch } = useAcademicPeriods();

@@ -1,7 +1,6 @@
 import React from "react";
 import { Clock } from "lucide-react";
 
-// Componentes Atomic Design
 import HistoricalScholarshipTable from "../../components/organisms/HistoricalScholarshipTable";
 import Heading from "../../components/atoms/Heading";
 

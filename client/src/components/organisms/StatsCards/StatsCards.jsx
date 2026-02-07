@@ -2,8 +2,6 @@ import React from "react";
 
 /**
  * ORGANISM: StatsCards
- * Tarjetas de estadísticas en el sidebar (Total Aplicantes, Pendientes, Casos Críticos)
- * Reemplaza JSX inline en AdminDashboard
  */
 const StatsCards = ({ total, pendingReview, criticalCases }) => {
   return (

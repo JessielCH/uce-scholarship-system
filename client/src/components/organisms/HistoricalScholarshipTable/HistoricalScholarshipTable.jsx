@@ -23,18 +23,18 @@ const fetchHistoricalScholars = async ({ queryKey }) => {
   const from = page * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Primero construir la query base para obtener conteo real
+  // first get total count with filters (without limit)
   let countQuery = supabase.from("scholarship_selections").select(
     "id",
-    { count: "estimated", head: true }, // estimated no tiene límite de 1000
+    { count: "estimated", head: true }, // estimated
   );
 
-  // Filtrar por período seleccionado
+  // Filter per period
   if (selectedPeriodId) {
     countQuery = countQuery.eq("period_id", selectedPeriodId);
   }
 
-  // Excluir período actual (solo mostrar históricos)
+  // Exclude current period (only historical)
   const { data: currentPeriod } = await supabase
     .from("academic_periods")
     .select("id")
@@ -53,10 +53,8 @@ const fetchHistoricalScholars = async ({ queryKey }) => {
     );
   }
 
-  // Obtener conteo exacto sin límite
   const { count: totalRecords, error: countError } = await countQuery;
 
-  // Ahora hacer la query para obtener datos paginados
   let query = supabase.from("scholarship_selections").select(
     `
       *,
@@ -67,12 +65,10 @@ const fetchHistoricalScholars = async ({ queryKey }) => {
     `,
   );
 
-  // Filtrar por período seleccionado
   if (selectedPeriodId) {
     query = query.eq("period_id", selectedPeriodId);
   }
 
-  // Excluir período actual (solo mostrar históricos)
   if (currentPeriod) {
     query = query.neq("period_id", currentPeriod.id);
   }
@@ -92,7 +88,6 @@ const fetchHistoricalScholars = async ({ queryKey }) => {
 
   if (error) throw error;
 
-  // Usar totalRecords de countQuery si está disponible, sino devolver count: exact de data
   return { data, count: totalRecords || 0 };
 };
 
@@ -109,7 +104,6 @@ const HistoricalScholarshipTable = () => {
 
   const debouncedSearch = useDebounce(searchTerm, 500);
 
-  // Obtener facultades
   const { data: facultiesData } = useQuery({
     queryKey: ["faculties"],
     queryFn: async () => {
@@ -121,7 +115,6 @@ const HistoricalScholarshipTable = () => {
     },
   });
 
-  // Obtener carreras del supabase
   const { data: allCareersData } = useQuery({
     queryKey: ["allCareers"],
     queryFn: async () => {
@@ -133,15 +126,13 @@ const HistoricalScholarshipTable = () => {
     },
   });
 
-  // Filtrar carreras según la facultad seleccionada
   const careersData = facultyFilter
     ? allCareersData?.filter((c) => c.faculty_id === facultyFilter)
     : [];
 
-  // Resetear carrera cuando cambia facultad
   const handleFacultyChange = (fId) => {
     setFacultyFilter(fId);
-    setCareerFilter(""); // Limpiar carrera
+    setCareerFilter(""); // clear career filter when faculty changes
     setPage(0);
   };
 
@@ -176,7 +167,6 @@ const HistoricalScholarshipTable = () => {
   const totalCount = data?.count;
   const totalPages = Math.ceil((totalCount || 0) / ITEMS_PER_PAGE);
 
-  // Debug: Log total de registros
   console.log(
     `📈 HISTORICAL - Total scholarship students: ${totalCount}, Page: ${page + 1}/${totalPages}`,
   );

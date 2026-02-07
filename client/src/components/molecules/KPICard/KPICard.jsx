@@ -3,8 +3,6 @@ import { TrendingUp } from "lucide-react";
 
 /**
  * MOLECULE: KPICard
- * Card para mostrar métricas clave.
- * Incluye: título, valor principal, icono, indicador de tendencia
  */
 const KPICard = ({
   title,

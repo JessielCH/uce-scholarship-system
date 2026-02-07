@@ -5,8 +5,6 @@ import Button from "../../atoms/Button";
 
 /**
  * ORGANISM: StatusAlert
- * Alert inteligente basado en el estado de la beca
- * Muestra acciones necesarias cuando hay rechazo o cambios requeridos
  */
 const StatusAlert = ({
   currentStatus,

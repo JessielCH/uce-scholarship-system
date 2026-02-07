@@ -3,7 +3,6 @@ import { Award, TrendingUp } from "lucide-react";
 
 /**
  * ORGANISM: AcademicRankings
- * Muestra las facultades y carreras con mejor promedio
  */
 const AcademicRankings = ({ topFaculty, topCareer, faculties, careers }) => {
   return (

@@ -1,6 +1,5 @@
 /**
  * PERFORMANCE MONITOR HOOK - SPRINT 17
- * Mide tiempos de renderizado y performance de queries
  */
 
 import { useEffect, useRef, useCallback } from "react";
@@ -8,24 +7,18 @@ import { logger } from "../utils/logger";
 
 const isDevelopment = import.meta.env.MODE === "development";
 
-/**
- * Hook para monitorear performance de componentes
- * Mide tiempo de renderizado y re-renders
- */
 export const usePerformance = (componentName, options = {}) => {
   const { logThreshold = 100 } = options; // ms
   const initialRenderTime = useRef(null);
   const renderCountRef = useRef(0);
   const lastRenderTimeRef = useRef(null);
 
-  // Registrar tiempo inicial en primer renderizado
   useEffect(() => {
     if (!initialRenderTime.current) {
       initialRenderTime.current = performance.now();
     }
   }, []);
 
-  // Medir re-renders
   useEffect(() => {
     const currentTime = performance.now();
     const renderTime =
@@ -59,9 +52,6 @@ export const usePerformance = (componentName, options = {}) => {
   };
 };
 
-/**
- * Hook para monitorear queries (React Query)
- */
 export const useQueryPerformance = (queryKey, queryFn, options = {}) => {
   const queryStartTime = useRef(null);
   const { logThreshold = 1000 } = options; // ms
@@ -94,9 +84,6 @@ export const useQueryPerformance = (queryKey, queryFn, options = {}) => {
   return wrappedQueryFn;
 };
 
-/**
- * Hook para medir Web Vitals (LCP, FID, CLS)
- */
 export const useWebVitals = () => {
   useEffect(() => {
     // LCP - Largest Contentful Paint

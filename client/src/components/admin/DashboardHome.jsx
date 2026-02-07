@@ -32,12 +32,10 @@ const DashboardHome = () => {
       </div>
     );
 
-  // Lógica de Renderizado Condicional
   if (role === "ADMIN") {
     return <AdminDashboard />;
   }
 
-  // Por defecto, Staff o cualquier otro rol interno ve el Operativo
   return <StaffDashboard />;
 };
 

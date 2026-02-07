@@ -4,8 +4,6 @@ import KPICard from "../../molecules/KPICard";
 
 /**
  * ORGANISM: DashboardMetrics
- * Sección de 4 KPI cards para el dashboard admin
- * Integra: KPICard molecules que muestran métricas clave
  */
 const DashboardMetrics = ({ data = {} }) => {
   const {

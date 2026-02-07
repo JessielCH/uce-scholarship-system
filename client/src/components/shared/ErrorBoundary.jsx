@@ -1,7 +1,5 @@
 /**
  * ERROR BOUNDARY - SPRINT 17
- * Captura errores de React y guarda logs estructurados
- * Evita que un error derrumbe toda la app
  */
 
 import React from "react";
@@ -23,19 +21,15 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Generar ID único para este error (para rastreo)
     const errorId = `ERR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.setState({ errorId });
 
-    // Log estructurado del error
     logger.error("ErrorBoundary", "Error capturado en React", error, {
       errorId,
       componentStack: errorInfo.componentStack,
       message: error.message,
       type: error.name,
     });
-
-    // En el futuro: enviar a servicio de error tracking (Sentry, etc)
   }
 
   handleReset = () => {

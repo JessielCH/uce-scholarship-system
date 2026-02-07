@@ -14,8 +14,6 @@ import Button from "../../atoms/Button";
 
 /**
  * MOLECULE: ScholarshipCard
- * Tarjeta responsive para mostrar información de beca individual
- * Reemplaza ScholarshipTableRow para mejor responsividad mobile
  */
 const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
   const [documents, setDocuments] = useState([]);
@@ -55,7 +53,7 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
     fetchDocuments();
   }, [item?.id]);
 
-  // Real-time subscription para documentos de esta tarjeta específica
+  // Real-time subscription to documents changes
   useEffect(() => {
     if (!item?.id) return;
 
@@ -70,7 +68,7 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
           filter: `selection_id=eq.${item.id}`,
         },
         () => {
-          // Cuando hay cambio, refrescar documentos
+          // channel event triggered - re-fetch documents
           supabase
             .from("documents")
             .select("*")
@@ -87,7 +85,7 @@ const ScholarshipCard = ({ item, onStatusChange, onGenerateContract }) => {
     };
   }, [item?.id]);
 
-  // Guard clause: evitar errores si item es undefined
+  // saveStatus function passed to ActionButtons - updates status in parent and re-fetches documents
   if (!item || !item.students) {
     return null;
   }

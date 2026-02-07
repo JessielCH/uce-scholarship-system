@@ -9,9 +9,6 @@ import Alert from "../../atoms/Alert";
 
 /**
  * ORGANISM: ContractUploadModal
- * Modal para subir contrato firmado.
- * Integra: FileUploadZone, Button, validación
- * Logic: Upload to storage, database record, status change
  */
 const ContractUploadModal = ({ selectionId, onClose, onSuccess }) => {
   const { user } = useAuth();

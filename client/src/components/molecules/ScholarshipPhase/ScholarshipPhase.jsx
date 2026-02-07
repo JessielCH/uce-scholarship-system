@@ -3,9 +3,6 @@ import { Loader, Calendar, CheckCircle, XCircle } from "lucide-react";
 
 /**
  * COMPONENT: ScholarshipPhase
- * Simple component that extracts content from Contentful by Entry ID
- * CMS is nothing more than a cloud database where you store text and data
- * This component only displays what is stored in Contentful
  */
 const ScholarshipPhase = ({ entryId }) => {
   const [content, setContent] = useState(null);

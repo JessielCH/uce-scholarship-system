@@ -18,8 +18,6 @@ import StatusBadge from "../../molecules/StatusBadge";
 
 /**
  * ORGANISM: ScholarshipStatusCard
- * Card que muestra el estado actual de la beca y acciones permitidas
- * Integra: StatusBadge, Button atoms
  */
 const ScholarshipStatusCard = ({
   scholarship,

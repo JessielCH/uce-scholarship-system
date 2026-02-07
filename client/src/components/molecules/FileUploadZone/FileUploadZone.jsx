@@ -3,7 +3,6 @@ import { UploadCloud, File, X } from "lucide-react";
 
 /**
  * MOLECULE: FileUploadZone
- * Zona de carga de archivos drag-and-drop reutilizable
  */
 const FileUploadZone = ({
   onFileSelect,

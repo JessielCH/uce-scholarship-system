@@ -11,7 +11,6 @@ import ScholarshipPhase from "../components/molecules/ScholarshipPhase";
 const Home = () => {
   const navigate = useNavigate();
 
-  // RUTAS DE IMÁGENES (para subir en carpeta public/images/)
   const logoImagePath = "/images/logo-uce.png"; // Logo UCE
   const heroBackgroundImagePath = "/images/hero-becas-bg.jpg"; // Imagen de fondo hero
 

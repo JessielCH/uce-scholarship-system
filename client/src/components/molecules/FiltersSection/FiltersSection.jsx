@@ -4,7 +4,6 @@ import Input from "../../atoms/Input";
 
 /**
  * MOLECULE: FiltersSection
- * Sección de búsqueda y filtros (búsqueda por nombre/cédula, estado, carrera)
  */
 const FiltersSection = ({
   searchTerm,
